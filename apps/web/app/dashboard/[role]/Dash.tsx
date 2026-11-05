@@ -33,15 +33,24 @@ export default function Dash({ role }: { role: string }) {
   return (
     <div className="dash">
       <header className="dbar">
-        <div><b>عِلمك</b> <span className="pill">تجريبي</span></div>
-        <div className="who">{meta.icon} {s.name} · {meta.ar}</div>
+        <div className="logo">عِلمك<span className="pill">تجريبي</span></div>
         <div className="sw">
           <a href="/login">تبديل الدور</a>
           <button onClick={() => { clearSession(); window.location.href = "/login"; }}>خروج</button>
         </div>
       </header>
-      <div className="demo-banner">بيانات وهمية للعرض فقط — لا دفع حقيقي، ولا رسائل، ولا هوية حقيقية.</div>
-      <main className="dgrid">{VIEWS[meta.key]({ name: s.name })}</main>
+      <div className="dwrap">
+        <section className="hero">
+          <div>
+            <p className="hello">{new Date().getHours() < 12 ? "صباح الخير" : "مساء الخير"}</p>
+            <h1>{s.name}</h1>
+            <span className="rolechip">{meta.ar}</span>
+          </div>
+          <p className="blurb">{meta.blurb}</p>
+        </section>
+        <main className="dgrid">{VIEWS[meta.key]({ name: s.name })}</main>
+        <p className="foot-demo">بيانات وهمية للعرض فقط: لا دفع حقيقي ولا رسائل ولا هوية حقيقية.</p>
+      </div>
     </div>
   );
 }
@@ -58,7 +67,7 @@ function Learner({ name }: { name: string }) {
   }
   return (<>
     <Card title={`أهلاً ${name.split(" ")[0]}`} wide><div className="kpis"><Kpi n="٢" l="حصص قادمة" /><Kpi n="٥" l="حصص مكتملة" /><Kpi n="٤.٩" l="متوسط تقييمك للمعلّمين" /></div></Card>
-    <Card title="حصصي">
+    <Card title="حصصي" wide>
       <ul className="rows">{LEARNER_SESSIONS.map((x) => (
         <li key={x.id}><div><b>{x.subject}</b> — {x.teacher}<small>{x.when}</small></div><Badge t={x.status} tone={x.status === "قادمة" ? "go" : ""} /></li>
       ))}</ul>

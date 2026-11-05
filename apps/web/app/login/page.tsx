@@ -28,43 +28,63 @@ export default function Login() {
   }
 
   return (
-    <main className="demo-login">
-      <a className="back" href="/">← العودة للرئيسية</a>
-      <div className="demo-banner">نسخة تجريبية — كل البيانات وهمية، والدفع والرسائل والهوية الوطنية محاكاة.</div>
-      <h1>تسجيل الدخول</h1>
-      <p className="sub">اختر دورك لتجرّب المنصة بحساب تجريبي جاهز.</p>
+    <main className="lg">
+      <aside className="lg-brand">
+        <div className="lg-logo">عِلمك<i>تجريبي</i></div>
+        <div className="lg-hero">
+          <h2 className="lg-word">علمك</h2>
+          <p className="lg-tag">علمك يجيب دخل</p>
+        </div>
+        <div className="lg-ticket" aria-hidden="true">
+          <b>حصة تجويد · الأحد ٨:٠٠ م</b>
+          <small>٦٠ ر.س محجوزة حتى تنتهي الحصة</small>
+          <div className="lg-steps"><span className="on">محجوز</span><hr /><span>الحصة</span><hr /><span>تحويل للمعلّم</span></div>
+        </div>
+      </aside>
 
-      <div className="role-grid">
-        {ROLES.map((x) => (
-          <button key={x.key} className={"role-card" + (role === x.key ? " on" : "")} onClick={() => { setRole(x.key); setSent(null); setErr(""); }}>
-            <span className="ico">{x.icon}</span>
-            <b>{x.ar}</b>
-            <small>{x.en}</small>
-            <span className="bl">{x.blurb}</span>
-          </button>
-        ))}
-      </div>
-
-      {r && (
-        <section className="otp-box">
-          <h2>{r.who}</h2>
-          <label>رقم الجوال (تجريبي)
-            <input value={r.phone} readOnly dir="ltr" />
-          </label>
-          {!sent ? (
-            <button className="btn primary dark" onClick={send}>إرسال رمز التحقق</button>
-          ) : (
-            <>
-              <p className="hint">رسالة SMS وهمية: رمزك هو <b dir="ltr">{sent}</b> (في النسخة الحقيقية يصل لجوالك فقط).</p>
-              <label>رمز التحقق
-                <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" dir="ltr" />
-              </label>
-              <button className="btn primary dark" onClick={verify}>دخول</button>
-            </>
-          )}
-          {err && <p className="err">{err}</p>}
-        </section>
-      )}
+      <section className="lg-form">
+        {!r ? (
+          <>
+            <a className="lg-back" href="/">العودة للرئيسية</a>
+            <h1>ادخل بحساب تجريبي</h1>
+            <p className="lg-sub">اختر دورًا لترى المنصة من زاويته. كل الحسابات جاهزة، ولا تحتاج كلمة مرور.</p>
+            <ul className="lg-roles">
+              {ROLES.map((x) => (
+                <li key={x.key}>
+                  <button className="lg-role" onClick={() => { setRole(x.key); setSent(null); setErr(""); }}>
+                    <span className="lg-av" data-k={x.key}>{x.who.replace(/^أ\. /, "").slice(0, 1)}</span>
+                    <span><b>{x.ar}</b><small>{x.blurb}</small></span>
+                    <em>{x.en}</em>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <>
+            <button className="lg-back" onClick={() => { setRole(null); setSent(null); setErr(""); }}>تغيير الدور</button>
+            <div className="lg-chosen">
+              <span className="lg-av" data-k={r.key}>{r.who.replace(/^أ\. /, "").slice(0, 1)}</span>
+              <div><h1 style={{ fontSize: "1.6rem", margin: 0 }}>{r.who}</h1><span className="lg-phone">{r.phone}</span></div>
+            </div>
+            {!sent ? (
+              <>
+                <p className="lg-sub">سنرسل رمز تحقق إلى هذا الرقم، وهو رقم تجريبي.</p>
+                <button className="lg-go" onClick={send}>إرسال رمز التحقق</button>
+              </>
+            ) : (
+              <>
+                <p className="lg-hint">رمز تجريبي: <b dir="ltr">{sent}</b>. في النسخة الحقيقية يصل الرمز برسالة SMS إلى جوالك فقط.</p>
+                <label className="lg-label" htmlFor="otp">رمز التحقق</label>
+                <input id="otp" className="lg-otp" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" />
+                <button className="lg-go" onClick={verify}>دخول</button>
+              </>
+            )}
+            {err && <p className="err" role="alert">{err}</p>}
+          </>
+        )}
+        <p className="lg-foot">نسخة تجريبية: البيانات وهمية، والدفع والرسائل والهوية الوطنية محاكاة.</p>
+      </section>
     </main>
   );
 }
