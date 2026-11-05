@@ -187,7 +187,7 @@ export default function Home() {
             بنينا عِلمك ليكون هذا الطريق.
           </p>
           <footer>
-            <strong>خالد</strong> · مؤسس عِلمك، الرياض
+            <strong>طلال الزامل</strong> · مؤسس عِلمك، الرياض
           </footer>
         </blockquote>
       </section>
