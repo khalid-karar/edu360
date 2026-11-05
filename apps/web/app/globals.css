@@ -386,3 +386,43 @@ footer .fine { color: var(--muted); }
 .btn.outline { background: transparent; border-color: var(--navy); color: var(--navy); }
 .btn.ghost-dark { border-color: var(--navy); color: var(--navy); }
 .thanks .btn.primary { color: #0b3f4a; }
+
+/* slogan inside calculator */
+.calc .big {
+  font-size: clamp(2rem, 6vw, 3.5rem); font-weight: 800; color: var(--navy); line-height: 1.3;
+  display: inline-block; padding-bottom: 6px; border-bottom: 4px solid var(--coral);
+}
+.calc .play { margin-top: 14px; font-size: clamp(1.4rem, 4vw, 2rem); font-weight: 700; color: var(--coral); }
+.calc .sub { margin-top: 10px; }
+.calc { padding-top: 56px; }
+
+/* founding */
+.founding { padding-top: 24px; padding-bottom: 24px; }
+.founding-card {
+  max-width: 760px; margin: 0 auto; padding: 32px; border-radius: 20px;
+  background: var(--navy); color: #fff;
+  background-image: radial-gradient(circle at 90% 10%, rgba(255, 122, 92, 0.22), transparent 50%);
+}
+.founding-card h2 { color: #fff; }
+.founding-card .sub { color: #c4cddc; }
+.founding-card .tag {
+  display: inline-block; margin-bottom: 10px; padding: 2px 14px; border-radius: 999px;
+  border: 1px solid var(--gold); color: var(--gold); font-weight: 700; font-size: 0.9rem;
+}
+.founding-card ul { list-style: none; padding: 0; margin: 20px 0 24px; display: grid; gap: 10px; }
+.founding-card li { display: flex; gap: 10px; align-items: baseline; }
+.founding-card li::before { content: "✦"; color: var(--gold); flex: none; }
+
+/* gallery captions */
+.who-photos figure { margin: 0; }
+.who-photos figcaption { margin-top: 8px; font-weight: 500; color: var(--navy); font-size: 0.95rem; }
+
+/* founder */
+.founder { padding-top: 24px; }
+.founder blockquote {
+  margin: 0 auto; max-width: 760px; padding: 32px; background: var(--sand); border-radius: 20px;
+  border-inline-start: 6px solid var(--coral);
+}
+.founder blockquote p { font-size: 1.2rem; color: var(--navy); line-height: 2; }
+.founder blockquote footer { margin-top: 14px; padding: 0; text-align: start; color: var(--muted); }
+.founder blockquote strong { color: var(--navy); }

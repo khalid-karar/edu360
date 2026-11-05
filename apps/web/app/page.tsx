@@ -111,12 +111,24 @@ export default function Home() {
         </div>
       </div>
 
-      <section className="slogan" aria-label="شعار عِلمك">
-        <p className="big">علمك يجيب دخل</p>
-        <p className="play">علمك… علّمك</p>
-      </section>
-
       <Calculator />
+
+      <section className="founding" aria-labelledby="found-h">
+        <div className="founding-card">
+          <p className="tag">مقاعد محدودة</p>
+          <h2 id="found-h">كن من أول ١٠٠ معلّم مؤسس</h2>
+          <p className="sub">المعلمون الأوائل هم من يصنعون عِلمك، ولهم مكانة خاصة:</p>
+          <ul>
+            <li>شارة «معلّم مؤسس» دائمة على ملفك</li>
+            <li>ظهور مميّز في نتائج البحث لأول ٣ أشهر</li>
+            <li>دخول مبكر قبل الإطلاق العام</li>
+            <li>مرافقة مباشرة من فريقنا في أول دروسك</li>
+          </ul>
+          <a className="btn primary" href="?role=teacher#join">
+            احجز مقعدك
+          </a>
+        </div>
+      </section>
 
       <section className="who">
         <h2>من يستطيع أن يعلّم؟</h2>
@@ -127,10 +139,22 @@ export default function Home() {
           ))}
         </ul>
         <div className="who-photos">
-          <Photo src="office.jpg" label="معلم يدرّس من مكتبه المطل على أفق الرياض" className="w-a" />
-          <Photo src="woman.jpg" label="معلمة تدرّس الخط العربي" className="w-b" />
-          <Photo src="retiree.jpg" label="معلم متقاعد يدرّس من مجلسه" className="w-c" />
-          <Photo src="group.jpg" label="جلسة تعليمية جماعية عبر الحاسوب" className="w-d" />
+          <figure>
+            <Photo src="calligraphy.jpg" label="يدا خطّاطة تكتب بالقصبة" className="w-a" />
+            <figcaption>خطّاطة تعلّم فنّها من بيتها</figcaption>
+          </figure>
+          <figure>
+            <Photo src="retiree.jpg" label="معلم متقاعد يدرّس من مجلسه" className="w-b" />
+            <figcaption>متقاعد يعلّم خبرة عمره</figcaption>
+          </figure>
+          <figure>
+            <Photo src="office.jpg" label="معلم يدرّس من مكتبه المطل على أفق الرياض" className="w-c" />
+            <figcaption>محترف يعلّم بعد الدوام</figcaption>
+          </figure>
+          <figure>
+            <Photo src="group.jpg" label="جلسة تعليمية جماعية عبر الحاسوب" className="w-d" />
+            <figcaption>جلسات جماعية لمن يتعلّم مع غيره</figcaption>
+          </figure>
         </div>
       </section>
 
@@ -153,6 +177,19 @@ export default function Home() {
         <p className="note">
           خيار «معلمة لطالبة» متاح لمن يفضّله، وجلسات القاصرين مسجّلة وتحت إشراف ولي الأمر.
         </p>
+      </section>
+
+      <section className="founder" aria-label="كلمة المؤسس">
+        <blockquote>
+          <p>
+            حولنا ناس كثير عندهم علم حقيقي: حافظة قرآن، معلم متقاعد، خطّاط، طبّاخة ماهرة.
+            ما ينقصهم إلا طريق آمن يوصلهم بمن يحتاجهم، ويضمن لهم حقهم.
+            بنينا عِلمك ليكون هذا الطريق.
+          </p>
+          <footer>
+            <strong>خالد</strong> · مؤسس عِلمك، الرياض
+          </footer>
+        </blockquote>
       </section>
 
       <section className="faq" aria-labelledby="faq-h">

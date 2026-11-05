@@ -17,8 +17,9 @@ export default function Calculator() {
 
   return (
     <section className="calc" id="earn" aria-labelledby="calc-h">
-      <h2 id="calc-h">كم يمكن أن يجيب لك علمك؟</h2>
-      <p className="sub">حرّك الأشرطة وشوف دخلك التقريبي من بيتك.</p>
+      <h2 id="calc-h" className="big">علمك يجيب دخل</h2>
+      <p className="play">علمك… علّمك</p>
+      <p className="sub">حرّك الأشرطة وشوف كم يمكن أن يجيب لك علمك من بيتك.</p>
 
       <div className="calc-card">
         <label className="range">
