@@ -2,6 +2,7 @@
 # Ilmak test-server bootstrap for Oracle Linux 9 (arm64). Idempotent: safe to re-run to redeploy.
 # Usage: BRANCH=deploy/oracle-test bash server-setup.sh
 set -euo pipefail
+export HOME="${HOME:-/root}"   # cloud-init runs us with no $HOME
 BRANCH="${BRANCH:-main}"
 # On failure, publish the (secret-free) log on port 80 so the problem can be read from a browser.
 fail() {
