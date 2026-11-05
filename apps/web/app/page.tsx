@@ -1,3 +1,6 @@
+import Calculator from "../components/Calculator";
+import HowTabs from "../components/HowTabs";
+
 const skills = [
   "القرآن والتجويد",
   "اللغة الإنجليزية",
@@ -20,23 +23,26 @@ const whoCanTeach = [
   "صاحب حرفة أو فن",
 ];
 
-const teacherSteps = [
-  { n: "١", t: "وثّق هويتك", d: "تسجيل سريع وتحقق من الهوية عبر نفاذ." },
-  { n: "٢", t: "قدّم مهارتك", d: "أضف شهاداتك وفيديو تعريفياً قصيراً، ثم مقابلة مع فريقنا." },
-  { n: "٣", t: "درّس واكسب", d: "ابدأ جلساتك من بيتك، واستلم أرباحك بعد كل درس." },
-];
+const icons: Record<string, string> = {
+  id: "M12 2l8 3v6c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V5l8-3zm-1 13l6-6-1.4-1.4L11 12.2 8.4 9.6 7 11l4 4z",
+  pay: "M3 6h18v12H3V6zm0 3h18M7 15h4",
+  app: "M4 4h16v12H8l-4 4V4zm4 4h8M8 11h5",
+  fam: "M8 11a3 3 0 100-6 3 3 0 000 6zm8 0a3 3 0 100-6 3 3 0 000 6zM2 20c0-3 3-5 6-5s6 2 6 5M14 20c0-2 1.5-3.6 4-4 2.2.2 4 1.6 4 4",
+};
 
-const learnerSteps = [
-  { n: "١", t: "اختر معلمك", d: "معلمون موثّقون، وتقييمات حقيقية من دروس فعلية." },
-  { n: "٢", t: "احجز وادفع", d: "المبلغ يُحفظ ولا يصل المعلم إلا بعد إتمام الدرس." },
-  { n: "٣", t: "تعلّم بأمان", d: "جلسة داخل المنصة، وولي الأمر يرى كل ما يخص ابنه." },
+const faq = [
+  { q: "هل أحتاج شهادة لأعلّم؟", a: "ليس دائماً. نطلب إثباتاً لمهارتك: نموذج من أعمالك أو فيديو تعريفي ثم مقابلة قصيرة. المواد الدراسية والقرآن لها متطلبات أعلى حسب المجال." },
+  { q: "هل يجب أن أظهر وجهي؟", a: "الجلسات بالصوت والصورة داخل المنصة. وإن كنتِ تفضّلين، يمكنك اختيار التدريس للطالبات فقط عبر خيار «معلمة لطالبة»." },
+  { q: "متى أستلم أرباحي؟", a: "بعد إتمام الدرس تمر فترة مراجعة ٤٨ ساعة، ثم يُحوَّل المبلغ أسبوعياً إلى حسابك البنكي. للمعلمين الجدد يكون أول تحويل بعد ١٤ يوماً." },
+  { q: "كم تأخذ المنصة؟", a: "عمولة ٢٠٪ لأول ٥ جلسات مع كل متعلّم، ثم ١٢٪ فقط. لا رسوم اشتراك ولا رسوم تسجيل." },
+  { q: "هل يمكنني التواصل مع الطالب خارج المنصة؟", a: "لا. الحجز والمحادثة والدفع كلها داخل المنصة، وهذا ما يحمي الطرفين من الاحتيال ويضمن لك حقك." },
 ];
 
 const trust = [
-  { t: "هوية موثّقة", d: "لا يظهر أي معلم قبل التحقق من هويته وشهاداته ومقابلته." },
-  { t: "دفع محمي", d: "المبلغ محجوز عبر مزوّد دفع مرخّص حتى يتم الدرس فعلاً." },
-  { t: "كل شيء داخل المنصة", d: "الحجز والمحادثة والفصل والدفع، دون الحاجة لتبادل أرقام أو روابط." },
-  { t: "ولي الأمر في الصورة", d: "حسابات الأبناء تحت إشراف ولي الأمر، وهو من يعتمد كل معلم." },
+  { i: "id", t: "هوية موثّقة", d: "لا يظهر أي معلم قبل التحقق من هويته وشهاداته ومقابلته." },
+  { i: "pay", t: "دفع محمي", d: "المبلغ محجوز عبر مزوّد دفع مرخّص حتى يتم الدرس فعلاً." },
+  { i: "app", t: "كل شيء داخل المنصة", d: "الحجز والمحادثة والفصل والدفع، دون الحاجة لتبادل أرقام أو روابط." },
+  { i: "fam", t: "ولي الأمر في الصورة", d: "حسابات الأبناء تحت إشراف ولي الأمر، وهو من يعتمد كل معلم." },
 ];
 
 function Photo({
@@ -79,13 +85,14 @@ export default function Home() {
             محمي، وجلسات آمنة. نفتح باباً جديداً للإنتاج لكل من لديه ما يقدّمه.
           </p>
           <div className="cta-row">
-            <a className="btn primary" href="#join">
+            <a className="btn primary" href="#earn">
+              احسب دخلك
+            </a>
+            <a className="btn ghost" href="#join">
               انضم لقائمة الانتظار
             </a>
-            <a className="btn ghost" href="#how">
-              كيف تعمل المنصة؟
-            </a>
           </div>
+          <p className="seek">تبحث عن معلم؟ <a href="#join">سجّل اهتمامك كمتعلّم</a></p>
         </div>
 
         <div className="mosaic" aria-hidden={false}>
@@ -108,6 +115,8 @@ export default function Home() {
         <p className="play">علمك… علّمك</p>
       </section>
 
+      <Calculator />
+
       <section className="who">
         <h2>من يستطيع أن يعلّم؟</h2>
         <p className="sub">كل من يملك مهارة ينفع بها غيره.</p>
@@ -124,39 +133,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="how" className="how">
-        <h2>كيف تعمل؟</h2>
-        <div className="two">
-          <div className="col">
-            <h3>للمعلّم</h3>
-            <ol>
-              {teacherSteps.map((s) => (
-                <li key={s.n}>
-                  <span className="num">{s.n}</span>
-                  <div>
-                    <strong>{s.t}</strong>
-                    <p>{s.d}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </div>
-          <div className="col">
-            <h3>للمتعلّم وولي الأمر</h3>
-            <ol>
-              {learnerSteps.map((s) => (
-                <li key={s.n}>
-                  <span className="num">{s.n}</span>
-                  <div>
-                    <strong>{s.t}</strong>
-                    <p>{s.d}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </div>
-      </section>
+      <HowTabs />
 
       <section className="trust">
         <h2>الثقة هي منتجنا</h2>
@@ -164,6 +141,9 @@ export default function Home() {
         <div className="grid">
           {trust.map((c) => (
             <article key={c.t} className="card">
+              <svg className="ico" viewBox="0 0 24 24" aria-hidden="true">
+                <path d={icons[c.i]} />
+              </svg>
               <h3>{c.t}</h3>
               <p>{c.d}</p>
             </article>
@@ -172,6 +152,18 @@ export default function Home() {
         <p className="note">
           خيار «معلمة لطالبة» متاح لمن يفضّله، وجلسات القاصرين مسجّلة وتحت إشراف ولي الأمر.
         </p>
+      </section>
+
+      <section className="faq" aria-labelledby="faq-h">
+        <h2 id="faq-h">أسئلة يسألها الجميع</h2>
+        <div className="faq-list">
+          {faq.map((f) => (
+            <details key={f.q}>
+              <summary>{f.q}</summary>
+              <p>{f.a}</p>
+            </details>
+          ))}
+        </div>
       </section>
 
       <section id="join" className="join">
