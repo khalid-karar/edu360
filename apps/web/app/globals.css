@@ -445,3 +445,79 @@ footer .fine { color: var(--muted); }
 .legal p { color: var(--ink); margin-top: 6px; }
 .legal .back { color: var(--navy); text-underline-offset: 4px; }
 .join .fine a { display: inline-block; padding: 12px 4px; }
+
+/* =========== v3: Sadu signature, Kufic display, fewer boxes =========== */
+:root { --display: "Reem Kufi", "Tajawal", sans-serif; --paper: #fbfaf6; }
+body { background: var(--paper); }
+h1, h2, .calc .big, .watermark, .mono { font-family: var(--display); }
+h2 { font-weight: 700; letter-spacing: 0; }
+
+/* Sadu band */
+.sadu { height: 28px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='28'%3E%3Crect width='56' height='28' fill='%23efe8da'/%3E%3Crect width='56' height='4' fill='%230b3f4a'/%3E%3Crect y='24' width='56' height='4' fill='%230b3f4a'/%3E%3Cpath d='M0 4h14l-7 8zM14 4h14l-7 8zM28 4h14l-7 8zM42 4h14l-7 8z' fill='%23f2705a'/%3E%3Cpath d='M0 24h14l-7-8zM14 24h14l-7-8zM28 24h14l-7-8zM42 24h14l-7-8z' fill='%23105a67'/%3E%3Cpath d='M14 10l4 4-4 4-4-4zM42 10l4 4-4 4-4-4z' fill='%230b3f4a'/%3E%3Cpath d='M28 11l3 3-3 3-3-3zM0 11l3 3-3 3-3-3zM56 11l3 3-3 3-3-3z' fill='%23f2705a'/%3E%3C/svg%3E") repeat-x; background-size: 56px 28px; }
+.sadu.flip { transform: scaleY(-1); }
+.marquee { background: var(--sand); padding: 12px 0; }
+
+/* hero: hierarchy by scale, one entrance sequence */
+h1 { display: grid; gap: 4px; margin-bottom: 24px; }
+h1 .l1 { font-size: clamp(1.6rem, 4.2vw, 2.4rem); color: var(--gold); font-weight: 500; }
+h1 .l2 { font-size: clamp(2.8rem, 8.5vw, 5rem); color: #fff; font-weight: 700; line-height: 1.2; }
+@media (prefers-reduced-motion: no-preference) {
+  .hero-text > *, .mosaic { animation: rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  h1 .l1 { animation: rise 0.7s 0.05s both; }
+  h1 .l2 { animation: rise 0.8s 0.2s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .hero-text .lead { animation-delay: 0.4s; }
+  .hero-text .cta-row { animation-delay: 0.55s; }
+  .hero-text .seek { animation-delay: 0.65s; }
+  .mosaic { animation-delay: 0.3s; }
+}
+@keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+
+/* photos: less uniform chrome */
+.photo { box-shadow: none; border: 0; border-radius: 10px; }
+.m-main { border-radius: 10px 10px 80px 10px; }
+.who-photos .photo { border-radius: 10px; }
+
+/* calculator: the one card on the page */
+.calc-card { box-shadow: 0 0 0 1px rgba(11, 63, 74, 0.08), 0 24px 48px -24px rgba(11, 63, 74, 0.35); }
+
+/* steps: a real sequence, so a timeline */
+.steps { position: relative; gap: 0; }
+.steps li { background: none; box-shadow: none; border-radius: 0; padding: 0 0 28px; position: relative; }
+.steps li::before {
+  content: ""; position: absolute; inset-inline-start: 19px; top: 40px; bottom: 0;
+  border-inline-start: 2px dashed rgba(11, 63, 74, 0.25);
+}
+.steps li:last-child::before { display: none; }
+@media (min-width: 800px) {
+  .steps li { flex-direction: column; padding: 0 0 0 24px; }
+  .steps li::before { inset-inline-start: 46px; inset-inline-end: 0; top: 19px; bottom: auto; border-inline-start: 0; border-top: 2px dashed rgba(11, 63, 74, 0.25); }
+}
+.num { font-family: var(--display); }
+
+/* trust: a list, not cards */
+.trust-list { display: grid; gap: 0; margin-top: 28px; }
+@media (min-width: 800px) { .trust-list { grid-template-columns: 1fr 1fr; column-gap: 48px; } }
+.trust-item { display: grid; grid-template-columns: 44px 1fr; column-gap: 14px; padding: 22px 0; border-top: 1px solid rgba(11, 63, 74, 0.15); }
+.trust-item .ico { grid-row: span 2; margin: 2px 0 0; }
+.trust-item h3 { color: var(--navy); margin: 0; }
+.trust-item p { color: var(--muted); }
+
+/* faq: hairline list */
+.faq details { background: none; box-shadow: none; border-radius: 0; border-top: 1px solid rgba(11, 63, 74, 0.15); padding: 0; }
+.faq details:last-child { border-bottom: 1px solid rgba(11, 63, 74, 0.15); }
+
+/* founder: full-bleed band, the quiet flagship */
+.founder { max-width: none; padding: 0; background: var(--navy); color: #fff; margin-top: 48px; }
+.founder-in { position: relative; overflow: hidden; max-width: 1100px; margin: 0 auto; padding: 72px 20px 80px; }
+.watermark {
+  position: absolute; inset-inline-end: -10px; top: 50%; transform: translateY(-55%);
+  font-size: clamp(14rem, 40vw, 26rem); line-height: 1; color: var(--coral); opacity: 0.16; pointer-events: none;
+}
+.founder blockquote { position: relative; margin: 0; max-width: 720px; padding: 0; background: none; border: 0; border-radius: 0; }
+.founder blockquote p { font-size: clamp(1.3rem, 3vw, 1.7rem); line-height: 1.9; color: #fff; font-weight: 500; }
+.founder blockquote footer { display: flex; align-items: center; gap: 14px; margin-top: 28px; padding: 0; text-align: start; color: #c4cddc; }
+.founder blockquote strong { color: #fff; font-size: 1.1rem; }
+.mono {
+  flex: none; width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--coral); color: var(--navy); font-size: 1.7rem; font-weight: 700;
+}

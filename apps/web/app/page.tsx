@@ -75,11 +75,9 @@ export default function Home() {
 
       <section className="hero">
         <div className="hero-text">
-          <p className="eyebrow">عِلمك · منصة سعودية للتعليم من المنزل</p>
           <h1>
-            عندك علم؟
-            <br />
-            <span className="gold">خلّه يشتغل لك.</span>
+            <span className="l1">عندك علم؟</span>
+            <span className="l2">خلّه يشتغل لك.</span>
           </h1>
           <p className="lead">
             نربط المعلّم الموهوب في بيته بالمتعلّم الذي يبحث عنه، بهوية موثّقة، ودفع
@@ -103,6 +101,7 @@ export default function Home() {
         </div>
       </section>
 
+      <div className="sadu" aria-hidden="true" />
       <div className="marquee" aria-label="مجالات التعليم">
         <div className="track">
           {[...skills, ...skills].map((s, i) => (
@@ -110,6 +109,7 @@ export default function Home() {
           ))}
         </div>
       </div>
+      <div className="sadu flip" aria-hidden="true" />
 
       <Calculator />
 
@@ -163,9 +163,9 @@ export default function Home() {
       <section className="trust">
         <h2>الثقة هي منتجنا</h2>
         <p className="sub">نبني المنصة بحيث يكون الأمان هو الأساس لا الإضافة.</p>
-        <div className="grid">
+        <div className="trust-list">
           {trust.map((c) => (
-            <article key={c.t} className="card">
+            <article key={c.t} className="trust-item">
               <svg className="ico" viewBox="0 0 24 24" aria-hidden="true">
                 <path d={icons[c.i]} />
               </svg>
@@ -180,16 +180,26 @@ export default function Home() {
       </section>
 
       <section className="founder" aria-label="كلمة المؤسس">
-        <blockquote>
-          <p>
-            حولنا ناس كثير عندهم علم حقيقي: حافظة قرآن، معلم متقاعد، خطّاط، طبّاخة ماهرة.
-            ما ينقصهم إلا طريق آمن يوصلهم بمن يحتاجهم، ويضمن لهم حقهم.
-            بنينا عِلمك ليكون هذا الطريق.
-          </p>
-          <footer>
-            <strong>طلال الزامل</strong> · مؤسس عِلمك، الرياض
-          </footer>
-        </blockquote>
+        <div className="sadu" aria-hidden="true" />
+        <div className="founder-in">
+          <span className="watermark" aria-hidden="true">ع</span>
+          <blockquote>
+            <p>
+              حولنا ناس كثير عندهم علم حقيقي: حافظة قرآن، معلم متقاعد، خطّاط، طبّاخة ماهرة.
+              ما ينقصهم إلا طريق آمن يوصلهم بمن يحتاجهم، ويضمن لهم حقهم.
+              بنينا عِلمك ليكون هذا الطريق.
+            </p>
+            <footer>
+              <span className="mono" aria-hidden="true">ط</span>
+              <span>
+                <strong>طلال الزامل</strong>
+                <br />
+                مؤسس عِلمك، الرياض
+              </span>
+            </footer>
+          </blockquote>
+        </div>
+        <div className="sadu flip" aria-hidden="true" />
       </section>
 
       <section className="faq" aria-labelledby="faq-h">
