@@ -1,0 +1,80 @@
+:root {
+  --navy: #0b2545;
+  --gold: #c9a227;
+  --ink: #1b1f27;
+  --muted: #5b6472;
+  --bg: #faf8f3;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Segoe UI", Tahoma, "Noto Naskh Arabic", system-ui, sans-serif;
+  line-height: 1.8;
+}
+
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 20px 48px;
+}
+
+.hero {
+  padding: 72px 0 40px;
+  text-align: center;
+}
+
+.badge {
+  display: inline-block;
+  margin: 0 0 16px;
+  padding: 2px 16px;
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  color: var(--gold);
+  font-weight: 700;
+}
+
+h1 {
+  margin: 0 0 16px;
+  font-size: clamp(2rem, 6vw, 3.25rem);
+  color: var(--navy);
+}
+
+.lead {
+  max-width: 640px;
+  margin: 0 auto;
+  font-size: 1.15rem;
+  color: var(--muted);
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin-top: 24px;
+}
+
+.card {
+  padding: 24px;
+  background: #fff;
+  border-top: 4px solid var(--gold);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(11, 37, 69, 0.1);
+}
+
+.card h2 {
+  margin: 0 0 8px;
+  font-size: 1.2rem;
+  color: var(--navy);
+}
+
+.card p { margin: 0; color: var(--muted); }
+
+footer {
+  margin-top: 48px;
+  text-align: center;
+  color: var(--muted);
+}
