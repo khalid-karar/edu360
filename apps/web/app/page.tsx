@@ -91,7 +91,7 @@ export default function Home() {
         <div className="mosaic" aria-hidden={false}>
           <Photo src="hero.jpg" label="معلمة سعودية تدرّس من منزلها عبر الحاسوب" className="m-main" />
           <Photo src="access.jpg" label="معلم من ذوي الإعاقة يدرّس من مكتبه المنزلي" className="m-a" />
-          <Photo src="student.jpg" label="طالبة تتعلم من البيت" className="m-b" />
+          <Photo src="courtyard.jpg" label="معلمة تدرّس من فناء منزلها" className="m-b" />
         </div>
       </section>
 
@@ -112,8 +112,10 @@ export default function Home() {
           ))}
         </ul>
         <div className="who-photos">
-          <Photo src="retiree.jpg" label="معلم متقاعد يدرّس عبر الحاسوب" className="w-a" />
+          <Photo src="office.jpg" label="معلم يدرّس من مكتبه المطل على أفق الرياض" className="w-a" />
           <Photo src="woman.jpg" label="معلمة تدرّس الخط العربي" className="w-b" />
+          <Photo src="retiree.jpg" label="معلم متقاعد يدرّس من مجلسه" className="w-c" />
+          <Photo src="group.jpg" label="جلسة تعليمية جماعية عبر الحاسوب" className="w-d" />
         </div>
       </section>
 
