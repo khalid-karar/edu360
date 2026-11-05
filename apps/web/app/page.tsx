@@ -1,5 +1,6 @@
 import Calculator from "../components/Calculator";
 import HowTabs from "../components/HowTabs";
+import RoleSelect from "../components/RoleSelect";
 
 const skills = [
   "القرآن والتجويد",
@@ -92,7 +93,7 @@ export default function Home() {
               انضم لقائمة الانتظار
             </a>
           </div>
-          <p className="seek">تبحث عن معلم؟ <a href="#join">سجّل اهتمامك كمتعلّم</a></p>
+          <p className="seek">تبحث عن معلم؟ <a href="?role=learner#join">سجّل اهتمامك كمتعلّم</a></p>
         </div>
 
         <div className="mosaic" aria-hidden={false}>
@@ -192,11 +193,7 @@ export default function Home() {
           </label>
           <label>
             أنا
-            <select name="role" defaultValue="teacher">
-              <option value="teacher">معلّم أريد أن أدرّس</option>
-              <option value="learner">متعلّم أبحث عن معلم</option>
-              <option value="parent">ولي أمر</option>
-            </select>
+            <RoleSelect />
           </label>
           <button className="btn primary" type="submit">
             سجّلني

@@ -1,9 +1,7 @@
 "use client";
 import { useState } from "react";
 
-const AR = "٠١٢٣٤٥٦٧٨٩";
-const ar = (n: number) =>
-  Math.round(n).toLocaleString("en-US").replace(/\d/g, (d) => AR[Number(d)] ?? d).replace(/,/g, "٬");
+const ar = (n: number) => Math.round(n).toLocaleString("en-US");
 
 const WEEKS_PER_MONTH = 4.3;
 const NET_LOW = 0.8; // 20% commission, first sessions with a learner
@@ -33,6 +31,7 @@ export default function Calculator() {
             max={20}
             step={1}
             value={hours}
+            style={{ "--p": `${((hours - 1) / 19) * 100}%` } as React.CSSProperties}
             onChange={(e) => setHours(Number(e.target.value))}
           />
         </label>
@@ -46,14 +45,15 @@ export default function Calculator() {
             max={250}
             step={10}
             value={price}
+            style={{ "--p": `${((price - 30) / 220) * 100}%` } as React.CSSProperties}
             onChange={(e) => setPrice(Number(e.target.value))}
           />
         </label>
 
-        <div className="result" aria-live="polite">
+        <div className="result" aria-live="polite" dir="rtl">
           <p className="small">دخلك الشهري التقريبي</p>
           <p className="amount">
-            {ar(round10(gross * NET_LOW))} – {ar(round10(gross * NET_HIGH))} <span>ريال</span>
+            <bdi>{ar(round10(gross * NET_LOW))}</bdi> – <bdi>{ar(round10(gross * NET_HIGH))}</bdi> <span>ريال</span>
           </p>
           <p className="small">
             من حوالي {ar(sessions)} ساعة شهرياً، بعد عمولة المنصة
@@ -64,7 +64,7 @@ export default function Calculator() {
           أبغى أبدأ
         </a>
         <p className="fine dark">
-          تقدير توضيحي وليس وعداً بالدخل؛ يعتمد على عدد الحجوزات. العمولة ٢٠٪ لأول ٥ جلسات مع كل متعلّم ثم ١٢٪.
+          تقدير توضيحي وليس وعداً بالدخل؛ يعتمد على عدد الحجوزات. العمولة 20% لأول 5 جلسات مع كل متعلّم ثم 12%.
         </p>
       </div>
     </section>

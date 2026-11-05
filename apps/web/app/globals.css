@@ -324,7 +324,21 @@ footer .fine { color: var(--muted); }
 }
 .range { display: grid; gap: 10px; font-weight: 500; color: var(--navy); }
 .range b { color: var(--coral); font-size: 1.2rem; margin-inline-start: 6px; }
-.range input { width: 100%; accent-color: var(--coral); direction: rtl; height: 28px; }
+.range input {
+  width: 100%; direction: rtl; height: 28px; background: transparent;
+  -webkit-appearance: none; appearance: none; cursor: pointer;
+}
+.range input::-webkit-slider-runnable-track { height: 8px; border-radius: 999px; background: linear-gradient(to left, var(--coral) var(--p, 0%), var(--sand) var(--p, 0%)); }
+.range input::-moz-range-track { height: 8px; border-radius: 999px; background: var(--sand); }
+.range input::-moz-range-progress { height: 8px; border-radius: 999px; background: var(--coral); }
+.range input::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 26px; height: 26px; margin-top: -9px; border-radius: 50%;
+  background: #fff; border: 3px solid var(--coral); box-shadow: 0 2px 6px rgba(11, 63, 74, 0.25);
+}
+.range input::-moz-range-thumb {
+  width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 3px solid var(--coral);
+}
+.range input:focus-visible { outline: 2px solid var(--navy); outline-offset: 4px; border-radius: 8px; }
 .result {
   background: var(--navy);
   color: #fff;
@@ -358,7 +372,13 @@ footer .fine { color: var(--muted); }
 /* faq */
 .faq-list { margin-top: 24px; display: grid; gap: 10px; max-width: 760px; }
 .faq details { background: #fff; border-radius: 12px; padding: 14px 20px; box-shadow: 0 1px 3px rgba(11, 63, 74, 0.1); }
-.faq summary { cursor: pointer; font-weight: 700; color: var(--navy); }
+.faq summary {
+  cursor: pointer; font-weight: 700; color: var(--navy); list-style: none;
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; flex: none; font-size: 1.5rem; line-height: 1; color: var(--coral); }
+.faq details[open] summary::after { content: "−"; }
 .faq details p { margin-top: 8px; color: var(--muted); }
 
 /* thanks / share */
