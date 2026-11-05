@@ -1,8 +1,10 @@
 :root {
   --navy: #0b3f4a;
   --navy-2: #105a67;
-  --gold: #ff7a5c;
+  --gold: #ffb8a3;
   --gold-soft: #ffd9cf;
+  --coral: #f2705a;
+  --sand: #efe8da;
   --cream: #f8f6f1;
   --ink: #1b1f27;
   --muted: #5b6472;
@@ -56,7 +58,7 @@ section { padding: 72px 20px; max-width: 1100px; margin: 0 auto; }
   line-height: 1.3;
   display: inline-block;
   padding-bottom: 6px;
-  border-bottom: 4px solid var(--gold);
+  border-bottom: 4px solid var(--coral);
 }
 .slogan .play {
   margin-top: 14px;
@@ -121,8 +123,8 @@ h1 {
   transition: transform 0.15s ease, background 0.15s ease;
 }
 .btn:hover { transform: translateY(-2px); }
-.btn.primary { background: var(--gold); color: var(--navy); }
-.btn.primary:hover { background: #ff9078; }
+.btn.primary { background: #ff9c82; color: #0b3f4a; }
+.btn.primary:hover { background: #ffb09a; }
 .btn.ghost { border-color: rgba(255, 255, 255, 0.5); color: #fff; }
 
 /* ---------- photos ---------- */
@@ -149,7 +151,7 @@ h1 {
 
 /* ---------- marquee ---------- */
 .marquee {
-  background: var(--gold);
+  background: var(--sand);
   color: var(--navy);
   overflow: hidden;
   white-space: nowrap;
@@ -161,7 +163,7 @@ h1 {
   gap: 48px;
   animation: slide 40s linear infinite;
 }
-.track span::before { content: "✦"; margin-inline-end: 48px; }
+.track span::before { content: "✦"; margin-inline-end: 48px; color: var(--coral); }
 @keyframes slide {
   from { transform: translateX(0); }
   to { transform: translateX(50%); }
@@ -186,7 +188,7 @@ h2 { font-size: clamp(1.7rem, 4vw, 2.3rem); color: var(--navy); font-weight: 800
 .chips li {
   padding: 8px 18px;
   background: #fff;
-  border: 1px solid var(--gold);
+  border: 1px solid var(--coral);
   border-radius: 999px;
   color: var(--navy);
   font-weight: 500;
@@ -243,7 +245,7 @@ h2 { font-size: clamp(1.7rem, 4vw, 2.3rem); color: var(--navy); font-weight: 800
 .card {
   padding: 24px;
   background: #fff;
-  border-top: 4px solid var(--gold);
+  border-top: 4px solid var(--coral);
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(11, 63, 74, 0.1);
 }
