@@ -1,12 +1,12 @@
 :root {
-  --navy: #0b2545;
-  --navy-2: #13315c;
-  --gold: #c9a227;
-  --gold-soft: #f1e3a8;
-  --cream: #faf8f3;
+  --navy: #0b3f4a;
+  --navy-2: #105a67;
+  --gold: #ff7a5c;
+  --gold-soft: #ffd9cf;
+  --cream: #f8f6f1;
   --ink: #1b1f27;
   --muted: #5b6472;
-  --photo-fallback: linear-gradient(135deg, #13315c 0%, #0b2545 55%, #3a3216 100%);
+  --photo-fallback: linear-gradient(135deg, #105a67 0%, #0b3f4a 55%, #4a2a20 100%);
 }
 
 * { box-sizing: border-box; }
@@ -87,8 +87,8 @@ main > .top { max-width: none; padding-inline: max(20px, calc((100vw - 1060px) /
   align-items: center;
   color: #fff;
   background-image:
-    radial-gradient(circle at 15% 20%, rgba(201, 162, 39, 0.18), transparent 45%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cpath d='M40 6l10 24 24 10-24 10-10 24-10-24L6 40l24-10z' fill='none' stroke='%23c9a227' stroke-opacity='0.13' stroke-width='1'/%3E%3C/svg%3E");
+    radial-gradient(circle at 15% 20%, rgba(255, 122, 92, 0.18), transparent 45%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cpath d='M40 6l10 24 24 10-24 10-10 24-10-24L6 40l24-10z' fill='none' stroke='%23ff7a5c' stroke-opacity='0.13' stroke-width='1'/%3E%3C/svg%3E");
 }
 
 @media (min-width: 900px) {
@@ -122,7 +122,7 @@ h1 {
 }
 .btn:hover { transform: translateY(-2px); }
 .btn.primary { background: var(--gold); color: var(--navy); }
-.btn.primary:hover { background: #dbb73a; }
+.btn.primary:hover { background: #ff9078; }
 .btn.ghost { border-color: rgba(255, 255, 255, 0.5); color: #fff; }
 
 /* ---------- photos ---------- */
@@ -132,7 +132,7 @@ h1 {
   background-repeat: no-repeat;
   background-color: var(--navy-2);
   border-radius: 16px;
-  border: 1px solid rgba(201, 162, 39, 0.35);
+  border: 1px solid rgba(255, 122, 92, 0.35);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
 }
 
@@ -215,7 +215,7 @@ h2 { font-size: clamp(1.7rem, 4vw, 2.3rem); color: var(--navy); font-weight: 800
   background: #fff;
   border-radius: 16px;
   padding: 28px;
-  box-shadow: 0 1px 4px rgba(11, 37, 69, 0.1);
+  box-shadow: 0 1px 4px rgba(11, 63, 74, 0.1);
 }
 .col h3 { color: var(--navy); font-size: 1.3rem; margin-bottom: 16px; }
 .col ol { list-style: none; padding: 0; display: grid; gap: 18px; }
@@ -245,7 +245,7 @@ h2 { font-size: clamp(1.7rem, 4vw, 2.3rem); color: var(--navy); font-weight: 800
   background: #fff;
   border-top: 4px solid var(--gold);
   border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(11, 37, 69, 0.1);
+  box-shadow: 0 1px 3px rgba(11, 63, 74, 0.1);
 }
 .card h3 { color: var(--navy); margin-bottom: 6px; }
 .card p { color: var(--muted); }
