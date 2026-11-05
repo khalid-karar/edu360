@@ -8,9 +8,9 @@ import "@fontsource/tajawal/latin-700.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "منصة التعليم — علّم من بيتك",
+  title: "عِلمك | Ilmak — علمك يجيب دخل",
   description:
-    "منصة سعودية تربط المعلّمين الموثّقين من المنزل بالمتعلّمين، بدفع محمي وجلسات آمنة. سجّل اهتمامك الآن.",
+    "عِلمك: منصة سعودية تربط المعلّمين الموثّقين من المنزل بالمتعلّمين، بدفع محمي وجلسات آمنة. عندك علم؟ خلّه يشتغل لك. سجّل اهتمامك الآن.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,4 +1,4 @@
-# Edu360
+# Ilmak (عِلمك)
 
 An Arabic-first marketplace where verified home-based teachers deliver paid live lessons to learners, with the money held until the lesson happens.
 

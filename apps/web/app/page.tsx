@@ -62,17 +62,19 @@ export default function Home() {
   return (
     <main>
       <header className="top">
-        <span className="brand">منصة التعليم</span>
+        <span className="brand">
+          عِلمك <span className="latin">Ilmak</span>
+        </span>
         <span className="soon">قريباً</span>
       </header>
 
       <section className="hero">
         <div className="hero-text">
-          <p className="eyebrow">منصة سعودية للتعليم من المنزل</p>
+          <p className="eyebrow">عِلمك · منصة سعودية للتعليم من المنزل</p>
           <h1>
-            عندك مهارة؟
+            عندك علم؟
             <br />
-            <span className="gold">بيتك صار فصلاً.</span>
+            <span className="gold">خلّه يشتغل لك.</span>
           </h1>
           <p className="lead">
             نربط المعلّم الموهوب في بيته بالمتعلّم الذي يبحث عنه، بهوية موثّقة، ودفع
@@ -102,6 +104,11 @@ export default function Home() {
           ))}
         </div>
       </div>
+
+      <section className="slogan" aria-label="شعار عِلمك">
+        <p className="big">علمك يجيب دخل</p>
+        <p className="play">علمك… علّمك</p>
+      </section>
 
       <section className="who">
         <h2>من يستطيع أن يعلّم؟</h2>
@@ -211,7 +218,7 @@ export default function Home() {
       </section>
 
       <footer>
-        <p>منصة التعليم · قيد الإعداد</p>
+        <p>عِلمك · Ilmak · قيد الإعداد</p>
         <p className="fine">الصور المعروضة توضيحية.</p>
       </footer>
     </main>
