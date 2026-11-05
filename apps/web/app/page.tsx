@@ -62,7 +62,7 @@ export default function Home() {
   return (
     <main>
       <header className="top">
-        <img className="logo" src="/images/logo-light.png" alt="عِلمك Ilmak" width={219} height={100} />
+        <img className="logo" src="/images/logo-light.png" alt="عِلمك Ilmak" width={382} height={152} />
         <span className="soon">قريباً</span>
       </header>
 
