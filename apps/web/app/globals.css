@@ -521,3 +521,6 @@ h1 .l2 { font-size: clamp(2.8rem, 8.5vw, 5rem); color: #fff; font-weight: 700; l
   flex: none; width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center;
   background: var(--coral); color: var(--navy); font-size: 1.7rem; font-weight: 700;
 }
+
+/* Section headings back to Tajawal; Reem Kufi kept for the hero line and the founder band marks */
+h2, .calc .big { font-family: "Tajawal", "Segoe UI", Tahoma, sans-serif; font-weight: 800; }
