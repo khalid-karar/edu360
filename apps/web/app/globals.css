@@ -4,6 +4,7 @@
   --gold: #ffb8a3;
   --gold-soft: #ffd9cf;
   --coral: #f2705a;
+  --coral-text: #c2412a;
   --sand: #efe8da;
   --cream: #f8f6f1;
   --ink: #1b1f27;
@@ -426,3 +427,21 @@ footer .fine { color: var(--muted); }
 .founder blockquote p { font-size: 1.2rem; color: var(--navy); line-height: 2; }
 .founder blockquote footer { margin-top: 14px; padding: 0; text-align: start; color: var(--muted); }
 .founder blockquote strong { color: var(--navy); }
+
+/* contrast + tap targets */
+.calc .play, .slogan .play { color: var(--coral-text); }
+.range b { color: var(--coral-text); }
+.ico { stroke: #e0563f; }
+.faq details { padding: 0 20px; }
+.faq summary { padding: 16px 0; }
+.faq details p { padding-bottom: 16px; margin-top: 0; }
+.seek a { display: inline-block; padding: 12px 4px; }
+.join .fine a { color: var(--gold); text-underline-offset: 3px; }
+
+/* legal */
+.legal { max-width: 720px; padding: 40px 20px 72px; }
+.legal h1 { color: var(--navy); font-size: 2rem; margin: 16px 0 6px; }
+.legal h2 { font-size: 1.2rem; margin-top: 28px; }
+.legal p { color: var(--ink); margin-top: 6px; }
+.legal .back { color: var(--navy); text-underline-offset: 4px; }
+.join .fine a { display: inline-block; padding: 12px 4px; }
