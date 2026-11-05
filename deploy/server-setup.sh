@@ -9,7 +9,8 @@ fail() {
   (firewall-cmd --add-service=http >/dev/null 2>&1 || iptables -I INPUT 4 -p tcp --dport 80 -j ACCEPT) || true
   cd /var/ilmak-fail && nohup python3 -m http.server 80 >/dev/null 2>&1 &
 }
-trap fail ERR
+[ -n "${UPDATE:-}" ] || trap fail ERR
+git config --global --add safe.directory /opt/ilmak
 REPO="https://github.com/khalid-karar/edu360.git"
 APP=/opt/ilmak
 PUBIP="$(curl -fsS -m 10 https://ifconfig.me || curl -fsS -m 10 https://api.ipify.org)"
@@ -88,7 +89,10 @@ $HOST {
 		Referrer-Policy strict-origin-when-cross-origin
 		-Server
 	}
-	@form method POST path /thanks
+	@form {
+		method POST
+		path /thanks
+	}
 	rewrite @form /api/waitlist
 	handle /api/* {
 		reverse_proxy 127.0.0.1:3000
@@ -115,7 +119,38 @@ Environment=XDG_DATA_HOME=/var/lib/caddy XDG_CONFIG_HOME=/var/lib/caddy
 WantedBy=multi-user.target
 UNIT
 
+# Self-update: every 5 min, if the branch has new commits, pull and re-run this script (no console access needed).
+cat >/usr/local/bin/ilmak-update <<UPD
+#!/bin/bash
+set -e
+cd $APP
+git fetch -q --depth 1 origin $BRANCH
+[ "\$(git rev-parse FETCH_HEAD)" = "\$(git rev-parse HEAD)" ] && exit 0
+git checkout -q -f FETCH_HEAD
+cp deploy/server-setup.sh /tmp/ilmak-update.sh
+UPDATE=1 BRANCH=$BRANCH bash /tmp/ilmak-update.sh >> /var/log/ilmak-update.log 2>&1
+UPD
+chmod +x /usr/local/bin/ilmak-update
+cat >/etc/systemd/system/ilmak-update.service <<UNIT
+[Unit]
+Description=Ilmak self-update
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/ilmak-update
+TimeoutStartSec=1800
+UNIT
+cat >/etc/systemd/system/ilmak-update.timer <<UNIT
+[Unit]
+Description=Ilmak self-update timer
+[Timer]
+OnBootSec=15min
+OnUnitInactiveSec=5min
+[Install]
+WantedBy=timers.target
+UNIT
+
 systemctl daemon-reload
+systemctl enable --now ilmak-update.timer >/dev/null
 systemctl enable --now ilmak-api >/dev/null
 systemctl restart ilmak-api
 systemctl enable --now caddy >/dev/null
