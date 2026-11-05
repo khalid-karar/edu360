@@ -8,7 +8,8 @@ CREATE TYPE user_role AS ENUM ('learner','guardian','minor','teacher',
 CREATE TYPE user_status AS ENUM ('pending','active','suspended','banned');
 CREATE TYPE teacher_status AS ENUM ('draft','submitted','interview','approved','conditional','rejected','suspended');
 CREATE TYPE booking_status AS ENUM ('requested','confirmed','declined','cancelled','completed','no_show_teacher','no_show_learner');
-CREATE TYPE payment_status AS ENUM ('authorized','held','released','refunded','partially_refunded','failed');
+-- Authorize at booking, capture after the lesson, void on decline/no-show/early cancel (Moyasar).
+CREATE TYPE payment_status AS ENUM ('authorized','captured','voided','refunded','partially_refunded','failed');
 CREATE TYPE payout_status AS ENUM ('pending','approved','paid','failed','on_hold');
 CREATE TYPE report_status AS ENUM ('open','reviewing','resolved','dismissed');
 CREATE TYPE dispute_outcome AS ENUM ('full_refund','partial_refund','release_to_teacher');
@@ -149,18 +150,6 @@ CREATE TABLE messages (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE payments (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  booking_id uuid UNIQUE NOT NULL REFERENCES bookings(id),
-  psp_reference text UNIQUE,
-  amount_halalas int NOT NULL,
-  commission_halalas int NOT NULL DEFAULT 0,
-  vat_halalas int NOT NULL DEFAULT 0,
-  status payment_status NOT NULL DEFAULT 'authorized',
-  release_after timestamptz,                       -- session end + 48h
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-
 CREATE TABLE payouts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   teacher_id uuid NOT NULL REFERENCES teacher_profiles(user_id),
@@ -169,6 +158,28 @@ CREATE TABLE payouts (
   approved_by uuid REFERENCES users(id),
   paid_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE payments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  booking_id uuid UNIQUE NOT NULL REFERENCES bookings(id),
+  provider text NOT NULL DEFAULT 'moyasar',
+  psp_reference text UNIQUE NOT NULL,              -- one provider payment can back only one booking
+  currency text NOT NULL DEFAULT 'SAR' CHECK (currency = 'SAR'),
+  amount_halalas int NOT NULL CHECK (amount_halalas > 0),      -- authorized amount
+  captured_halalas int NOT NULL DEFAULT 0,
+  refunded_halalas int NOT NULL DEFAULT 0,
+  commission_halalas int NOT NULL DEFAULT 0,
+  vat_halalas int NOT NULL DEFAULT 0,
+  status payment_status NOT NULL DEFAULT 'authorized',
+  authorized_at timestamptz,
+  captured_at timestamptz,
+  voided_at timestamptz,
+  payout_eligible_at timestamptz,                  -- captured_at + 48 h dispute window
+  payout_id uuid REFERENCES payouts(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (captured_halalas <= amount_halalas),
+  CHECK (refunded_halalas <= captured_halalas)
 );
 
 CREATE TABLE reviews (

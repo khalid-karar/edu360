@@ -1,27 +1,33 @@
 # Edu360
 
-An Arabic-first marketplace where verified home-based teachers deliver paid live lessons to learners, with the platform holding the money until the lesson happens.
+An Arabic-first marketplace where verified home-based teachers deliver paid live lessons to learners, with the money held until the lesson happens.
 
-**Status:** planning phase. No application code yet.
+**Status:** phase 1 (domain core) done. The public site is a coming-soon page with a waitlist.
 
 ## What is here
 
 | Path | Contents |
 | --- | --- |
-| `docs/MVP_PLAN.md` | Full MVP plan: scope, roles, workflows, trust and safety, payments, compliance, architecture, roadmap, open decisions |
-| `db/schema.sql` | First draft of the PostgreSQL schema for the core data objects |
+| `apps/web` | Next.js site (static coming-soon page on Netlify) |
+| `apps/api` | TypeScript domain core: money and commission, booking policy and state machine, Moyasar adapter and webhook checks, chat filter, payout rules, strike policy. 57 unit tests |
+| `db/schema.sql` | PostgreSQL schema for the core data objects |
+| `docs/MVP_PLAN.md` | Product plan: scope, roles, workflows, trust and safety, compliance |
+| `docs/ARCHITECTURE.md` | Moyasar money flow, Oracle Cloud hosting, build phases, open items for Moyasar |
+| `docs/IMAGE_PROMPTS.md` | Prompts used for the page photos |
 
-## MVP in one line
+## How the money works
 
-Verified home teachers can deliver paid live lessons to learners, safely, with funds held by a SAMA-licensed payment provider until the lesson is delivered and the 48-hour dispute window closes.
+Learner's card is **authorized** at booking (nothing charged) → teacher accepts → lesson happens → **captured** → 48-hour dispute window → weekly payout. Declines, no-shows and early cancellations are plain voids. Bookings are limited to 10 days ahead because a mada authorization lives 14 days. Details in `docs/ARCHITECTURE.md`.
 
-## Planned stack
+## Run the tests
 
-Next.js (Arabic RTL first) · NestJS modular monolith · PostgreSQL + Redis · LiveKit self-hosted video with recordings in Saudi object storage · Nafath identity · licensed PSP marketplace/split-payout API · Saudi-region cloud hosting.
+```
+cd apps/api
+npm install
+npm test
+npm run typecheck
+```
 
-## Next steps
+## Next
 
-1. Legal opinion on NeLC licensing classification (week 1).
-2. Confirm payment provider supports individual teachers as sub-merchants.
-3. Resolve the open decisions at the end of `docs/MVP_PLAN.md`.
-4. Scaffold the app (`apps/web`, `apps/api`) once the legal gate is passed.
+Phase 2: HTTP API with PostgreSQL (auth, teacher onboarding and vetting, bookings, payments and webhook endpoint, chat, reports, disputes, admin queues, audit log). See the phase table in `docs/ARCHITECTURE.md`.
