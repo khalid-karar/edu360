@@ -98,7 +98,7 @@ export default function Home() {
 
         <div className="mosaic" aria-hidden={false}>
           <Photo src="hero.jpg" label="معلمة سعودية تدرّس من منزلها عبر الحاسوب" className="m-main" />
-          <Photo src="access.jpg" label="معلم من ذوي الإعاقة يدرّس من مكتبه المنزلي" className="m-a" />
+          <Photo src="retiree.jpg" label="معلم متقاعد يدرّس من مجلسه" className="m-a" />
           <Photo src="courtyard.jpg" label="معلمة تدرّس من فناء منزلها" className="m-b" />
         </div>
       </section>
@@ -144,8 +144,8 @@ export default function Home() {
             <figcaption>خطّاطة تعلّم فنّها من بيتها</figcaption>
           </figure>
           <figure>
-            <Photo src="retiree.jpg" label="معلم متقاعد يدرّس من مجلسه" className="w-b" />
-            <figcaption>متقاعد يعلّم خبرة عمره</figcaption>
+            <Photo src="access.jpg" label="معلم من ذوي الإعاقة يدرّس من مكتبه المنزلي" className="w-b" />
+            <figcaption>يعلّم من بيته، والإعاقة ما منعته</figcaption>
           </figure>
           <figure>
             <Photo src="office.jpg" label="معلم يدرّس من مكتبه المطل على أفق الرياض" className="w-c" />
