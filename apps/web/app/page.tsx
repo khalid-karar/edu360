@@ -255,6 +255,7 @@ export default function Home() {
         <img className="logo-foot" src="/images/logo-color.png" alt="عِلمك Ilmak" width={156} height={69} />
         <p>قيد الإعداد</p>
         <p className="fine">الصور المعروضة توضيحية.</p>
+        <p className="fine"><a href="/login">دخول تجريبي (بيانات وهمية)</a></p>
       </footer>
     </main>
   );
