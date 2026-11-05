@@ -3,6 +3,13 @@
 # Usage: BRANCH=deploy/oracle-test bash server-setup.sh
 set -euo pipefail
 BRANCH="${BRANCH:-main}"
+# On failure, publish the (secret-free) log on port 80 so the problem can be read from a browser.
+fail() {
+  mkdir -p /var/ilmak-fail && cp /var/log/ilmak-setup.log /var/ilmak-fail/log.txt 2>/dev/null || true
+  (firewall-cmd --add-service=http >/dev/null 2>&1 || iptables -I INPUT 4 -p tcp --dport 80 -j ACCEPT) || true
+  cd /var/ilmak-fail && nohup python3 -m http.server 80 >/dev/null 2>&1 &
+}
+trap fail ERR
 REPO="https://github.com/khalid-karar/edu360.git"
 APP=/opt/ilmak
 PUBIP="$(curl -fsS -m 10 https://ifconfig.me || curl -fsS -m 10 https://api.ipify.org)"
