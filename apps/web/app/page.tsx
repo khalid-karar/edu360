@@ -62,9 +62,7 @@ export default function Home() {
   return (
     <main>
       <header className="top">
-        <span className="brand">
-          عِلمك <span className="latin">Ilmak</span>
-        </span>
+        <img className="logo" src="/images/logo-light.png" alt="عِلمك Ilmak" width={219} height={100} />
         <span className="soon">قريباً</span>
       </header>
 
@@ -218,7 +216,8 @@ export default function Home() {
       </section>
 
       <footer>
-        <p>عِلمك · Ilmak · قيد الإعداد</p>
+        <img className="logo-foot" src="/images/logo-color.png" alt="عِلمك Ilmak" width={156} height={69} />
+        <p>قيد الإعداد</p>
         <p className="fine">الصور المعروضة توضيحية.</p>
       </footer>
     </main>

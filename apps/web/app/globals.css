@@ -300,3 +300,6 @@ footer .fine { color: var(--muted); }
 .thanks h1 { color: var(--navy); font-size: 2.5rem; margin: 0; }
 .thanks p { color: var(--muted); }
 .thanks .btn { justify-self: center; }
+
+.logo { height: 56px; width: auto; display: block; }
+.logo-foot { height: 64px; width: auto; display: block; margin: 0 auto 8px; }
