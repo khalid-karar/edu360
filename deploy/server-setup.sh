@@ -23,7 +23,9 @@ if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split("."
   dnf -y module enable nodejs:22 >/dev/null || dnf -y module enable nodejs:20 >/dev/null
   dnf -y install nodejs >/dev/null
 fi
-node -v
+command -v npm >/dev/null || dnf -y install npm >/dev/null
+command -v npm >/dev/null || { echo "npm missing"; false; }
+node -v; npm -v
 
 if ! command -v caddy >/dev/null; then
   echo "== caddy"
@@ -49,8 +51,13 @@ if [ -d "$APP/.git" ]; then
 else
   rm -rf "$APP"; git clone --depth 1 --branch "$BRANCH" "$REPO" "$APP"
 fi
-cd "$APP/apps/api" && npm ci --no-audit --no-fund && npm run build
-cd "$APP/apps/web" && npm ci --no-audit --no-fund && npm run build
+cd "$APP/apps/api"
+npm ci --no-audit --no-fund
+npm run build
+cd "$APP/apps/web"
+npm ci --no-audit --no-fund
+npm run build
+test -f "$APP/apps/web/out/index.html"
 mkdir -p /var/lib/ilmak && chown -R ilmak:ilmak /var/lib/ilmak "$APP"
 
 echo "== services"
