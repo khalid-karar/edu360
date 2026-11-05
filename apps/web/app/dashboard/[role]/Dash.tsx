@@ -5,6 +5,7 @@ import {
   ROLES, TEACHERS, LEARNER_SESSIONS, CHILDREN, APPROVALS, TEACHER_REQUESTS, EARNINGS, APPLICANTS, REPORTS,
   PAYOUTS, REFUNDS, AUDIT_SEED, TEACHER_NATIONAL_ID, type RoleKey,
 } from "../../demo-data";
+import Teacher from "./Teacher";
 import { api, clearSession, getSession, type Session } from "../../demo-session";
 
 const sar = (n: number) => `${n.toLocaleString("ar-SA", { maximumFractionDigits: 2 })} ر.س`;
@@ -130,37 +131,6 @@ function Minor() {
 }
 
 /* ---------------- teacher ---------------- */
-function Teacher() {
-  const [nf, setNf] = useState<{ state: string; number?: string }>({ state: "لم تبدأ" });
-  const [payout, setPayout] = useState("");
-  async function verify() {
-    setNf({ state: "جارٍ الطلب…" });
-    const r = await api<{ requestId: string; number: string }>("/api/nafath/start", { nationalId: TEACHER_NATIONAL_ID });
-    if (!r) { setNf({ state: "تم التحقق (محاكاة محلية)" }); return; }
-    setNf({ state: "افتح تطبيق نفاذ واختر الرقم", number: r.number });
-    for (let i = 0; i < 6; i++) {
-      await new Promise((x) => setTimeout(x, 1500));
-      const st = await api<{ status: string }>(`/api/nafath/status?requestId=${r.requestId}`);
-      if (st?.status === "approved") return setNf({ state: "تم التوثيق عبر نفاذ ✓" });
-      if (st?.status === "rejected") return setNf({ state: "رُفض الطلب" });
-    }
-    setNf({ state: "انتهت المهلة" });
-  }
-  const net = (e: (typeof EARNINGS)[number]) => e.gross * (1 - e.rate);
-  return (<>
-    <Card title="توثيق الهوية"><p>الحالة: <b>{nf.state}</b></p>
-      {nf.number && <div className="nafath">الرقم: <b>{nf.number}</b></div>}
-      <button className="btn primary dark" onClick={verify}>توثيق عبر نفاذ (تجريبي)</button></Card>
-    <Card title="طلبات جديدة"><ul className="rows">{TEACHER_REQUESTS.map((r) => <li key={r.id}><div><b>{r.subject}</b> — {r.learner}<small>{r.when}</small></div><button className="btn primary dark sm">قبول</button></li>)}</ul></Card>
-    <Card title="أرباحي" wide>
-      <table className="tbl"><thead><tr><th>الفترة</th><th>الحصص</th><th>الإجمالي</th><th>العمولة</th><th>الصافي</th></tr></thead>
-        <tbody>{EARNINGS.map((e) => <tr key={e.week}><td>{e.week}</td><td>{e.sessions}</td><td>{sar(e.gross)}</td><td>{e.rate * 100}٪</td><td><b>{sar(net(e))}</b></td></tr>)}</tbody></table>
-      <p className="hint">العمولة ٢٠٪ على أول ٥ حصص مع كل متعلّم، ثم ١٢٪.</p>
-      <button className="btn outline" onClick={() => setPayout("تم رفع طلب التحويل للمالية (تجريبي)")}>اطلب تحويلاً</button>{payout && <p className="hint">{payout}</p>}
-    </Card>
-  </>);
-}
-
 /* ---------------- vetting ---------------- */
 function Vetting() {
   const [d, setD] = useState<Record<string, string>>({});
