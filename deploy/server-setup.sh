@@ -10,7 +10,6 @@ fail() {
   cd /var/ilmak-fail && nohup python3 -m http.server 80 >/dev/null 2>&1 &
 }
 [ -n "${UPDATE:-}" ] || trap fail ERR
-git config --global --add safe.directory /opt/ilmak
 REPO="https://github.com/khalid-karar/edu360.git"
 APP=/opt/ilmak
 PUBIP="$(curl -fsS -m 10 https://ifconfig.me || curl -fsS -m 10 https://api.ipify.org)"
@@ -19,6 +18,7 @@ echo "== host: $HOST"
 
 echo "== packages"
 dnf -y install git tar >/dev/null
+git config --global --add safe.directory /opt/ilmak
 if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 20 ]; then
   dnf -y module reset nodejs >/dev/null || true
   dnf -y module enable nodejs:22 >/dev/null || dnf -y module enable nodejs:20 >/dev/null
