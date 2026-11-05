@@ -124,6 +124,7 @@ UNIT
 cat >/usr/local/bin/ilmak-update <<UPD
 #!/bin/bash
 set -e
+export HOME=/root
 cd $APP
 git fetch -q --depth 1 origin $BRANCH
 [ "\$(git rev-parse FETCH_HEAD)" = "\$(git rev-parse HEAD)" ] && exit 0
