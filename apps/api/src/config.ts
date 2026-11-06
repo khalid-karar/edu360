@@ -1,0 +1,55 @@
+import { randomBytes } from "node:crypto";
+import { z } from "zod";
+
+const hexKey = z.string().regex(/^[0-9a-fA-F]{64}$/, "must be 64 hex characters (openssl rand -hex 32)");
+
+const Env = z.object({
+  PORT: z.coerce.number().int().default(3000),
+  DATABASE_URL: z.string().min(1),
+  PROVIDERS: z.string().default("mock"),
+  WAITLIST_FILE: z.string().default("./data/waitlist.jsonl"),
+  /** Keyed hash for national IDs. Must stay stable forever: changing it breaks "one account per ID". */
+  ID_HASH_KEY: hexKey,
+  /** Encrypts staff TOTP secrets at rest. */
+  MFA_ENC_KEY: hexKey,
+  /** Keys one-time code hashes. May change freely (codes live 5 minutes). */
+  OTP_KEY: hexKey.optional(),
+  SESSION_HOURS: z.coerce.number().positive().default(24 * 30),
+  STAFF_SESSION_HOURS: z.coerce.number().positive().default(8),
+  /** Allowed prefix for uploaded file keys; real storage issues keys under it. */
+  UPLOADS_PREFIX: z.string().default("uploads/"),
+});
+
+export interface Config {
+  port: number;
+  databaseUrl: string;
+  providers: "mock";
+  waitlistFile: string;
+  idHashKey: Buffer;
+  mfaEncKey: Buffer;
+  otpKey: Buffer;
+  sessionHours: number;
+  staffSessionHours: number;
+  uploadsPrefix: string;
+  /** Mock mode only: return the one-time code in the response. Real SMS never echoes it. */
+  echoOtp: boolean;
+}
+
+export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+  const e = Env.parse(env);
+  // Real providers are not wired yet. Refuse to start rather than silently run mocks by mistake.
+  if (e.PROVIDERS !== "mock") throw new Error(`PROVIDERS=${e.PROVIDERS} is not implemented yet; use PROVIDERS=mock`);
+  return {
+    port: e.PORT,
+    databaseUrl: e.DATABASE_URL,
+    providers: "mock",
+    waitlistFile: e.WAITLIST_FILE,
+    idHashKey: Buffer.from(e.ID_HASH_KEY, "hex"),
+    mfaEncKey: Buffer.from(e.MFA_ENC_KEY, "hex"),
+    otpKey: e.OTP_KEY ? Buffer.from(e.OTP_KEY, "hex") : randomBytes(32),
+    sessionHours: e.SESSION_HOURS,
+    staffSessionHours: e.STAFF_SESSION_HOURS,
+    uploadsPrefix: e.UPLOADS_PREFIX,
+    echoOtp: e.PROVIDERS === "mock",
+  };
+}

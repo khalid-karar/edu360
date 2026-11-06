@@ -1,7 +1,6 @@
--- Edu360 core schema (draft v0). PostgreSQL 15+.
+-- Ilmak core schema (migration 0001). PostgreSQL 15+.
 -- Money is stored in halalas (integer) to avoid float errors. All timestamps are UTC.
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TYPE user_role AS ENUM ('learner','guardian','minor','teacher',
   'vetting_officer','safety_officer','finance_officer','super_admin');
