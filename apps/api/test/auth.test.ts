@@ -124,15 +124,17 @@ describe("registration and sessions", () => {
     expect((await h.call("GET", "/api/auth/me", { token: v.token })).status).toBe(401);
   });
 
-  it("blocks banned users from logging in and cuts live sessions", async () => {
+  it("gives banned users a session that opens only their record, never the rest of the app", async () => {
     const u = await h.signup("learner");
     await h.db.query("UPDATE users SET status = 'banned' WHERE id = $1", [u.id]);
-    expect((await h.call("GET", "/api/auth/me", { token: u.token })).status).toBe(403);
+    expect((await h.call("GET", "/api/auth/me", { token: u.token })).body.status).toBe("banned");
+    expect((await h.call("GET", "/api/teachers", { token: u.token })).body.error).toBe("account_banned");
     h.clock.advance(11 * 60_000);
     const rq = await h.call("POST", "/api/auth/otp/request", { body: { phone: u.phone } });
     const v = await h.call("POST", "/api/auth/otp/verify", { body: { phone: u.phone, code: rq.body.mock_code } });
-    expect(v.status).toBe(403);
-    expect(v.body.error).toBe("account_banned");
+    expect(v.status).toBe(200);
+    expect(v.body.next).toBe("appeal");
+    expect((await h.call("GET", "/api/bookings", { token: v.body.token })).body.error).toBe("account_banned");
   });
 });
 

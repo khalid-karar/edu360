@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { ErrorNote, Field, Spinner } from "../portal-ui";
 import { dateTime } from "../../lib/format";
-import { useAct, useLoad } from "./common";
+import { Tabs, useAct, useLoad } from "./common";
 
 interface Queue {
   reports: { id: string; category: string; status: string; assignedTo: string | null; createdAt: string; reportedUser: { id: string; displayName: string } | null }[];
@@ -13,6 +13,16 @@ const reasonText = (r: string | null) => (r ?? "").split(",").map((x) => REASON[
 const CAT: Record<string, string> = { conduct: "سلوك", safety: "سلامة", no_show: "غياب", payment: "دفع", other: "أخرى" };
 
 export function SafetyConsole({ meId }: { meId: string }) {
+  const [tab, setTab] = useState<"queue" | "appeals">("queue");
+  return (
+    <>
+      <Tabs value={tab} onChange={setTab} items={[{ id: "queue", label: "البلاغات والتنبيهات" }, { id: "appeals", label: "التظلّمات" }]} />
+      {tab === "queue" ? <QueueConsole meId={meId} /> : <Appeals />}
+    </>
+  );
+}
+
+function QueueConsole({ meId }: { meId: string }) {
   const [sel, setSel] = useState<{ kind: "report" | "flag"; id: string } | null>(null);
   const q = useLoad<Queue>("/admin/safety/queue");
   const back = () => { setSel(null); q.reload(); };
@@ -165,6 +175,76 @@ function Flag({ id, onBack }: { id: string; onBack: () => void }) {
           {strike && f.message && <StrikeForm userId={f.message.senderId} />}
         </div>
       ) : <p className="muted">تمت مراجعة هذا التنبيه.</p>}
+    </>
+  );
+}
+
+interface AppealItem { id: string; status: string; createdAt: string; user: { displayName: string; role: string }; strike: { action: string; level: number } }
+const AROLE: Record<string, string> = { learner: "متعلّم", guardian: "ولي أمر", teacher: "معلّم" };
+
+function Appeals() {
+  const [status, setStatus] = useState<"open" | "upheld" | "reversed">("open");
+  const [sel, setSel] = useState<string | null>(null);
+  const q = useLoad<{ items: AppealItem[] }>(sel ? null : `/admin/safety/appeals?status=${status}`);
+  if (sel) return <AppealDetail id={sel} onBack={() => setSel(null)} />;
+  return (
+    <>
+      <Tabs value={status} onChange={setStatus} items={[{ id: "open", label: "مفتوحة" }, { id: "reversed", label: "مقبولة" }, { id: "upheld", label: "مرفوضة" }]} />
+      <ErrorNote error={q.err} />
+      {!q.data && !q.err && <Spinner />}
+      {q.data?.items.length === 0 && <div className="empty">لا تظلّمات.</div>}
+      <div className="grid">
+        {q.data?.items.map((a) => (
+          <button key={a.id} className="card tight click" onClick={() => setSel(a.id)}>
+            <div className="row between"><b>{a.user.displayName}</b><span className={`badge ${a.strike.action === "ban" ? "bad" : "wait"}`}>{ACTION[a.strike.action] ?? a.strike.action}</span></div>
+            <span className="muted small">{AROLE[a.user.role] ?? a.user.role} · {dateTime(a.createdAt)}</span>
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+interface AppealD {
+  id: string; status: string; reason: string; decisionNote: string | null; createdAt: string;
+  user: { id: string; displayName: string; role: string; status: string };
+  strike: { id: string; action: string; level: number; reason: string; zeroTolerance: boolean; issuedAt: string; issuedByMe: boolean };
+  history: { level: number; action: string; createdAt: string; voided: boolean }[];
+}
+function AppealDetail({ id, onBack }: { id: string; onBack: () => void }) {
+  const d = useLoad<AppealD>(`/admin/safety/appeals/${id}`);
+  const act = useAct();
+  const [note, setNote] = useState("");
+  if (!d.data) return <><ErrorNote error={d.err} />{!d.err && <Spinner />}<button className="btn ghost" onClick={onBack}>رجوع</button></>;
+  const a = d.data;
+  async function decide(outcome: "upheld" | "reversed") {
+    if (!confirm(outcome === "reversed" ? "إلغاء المخالفة وإعادة الحساب إن لم يكن هناك ما يبقيه موقوفاً؟" : "تثبيت المخالفة ورفض التظلّم؟")) return;
+    if (await act.run("POST", `/admin/safety/appeals/${id}/decide`, { outcome, note: note.trim() })) onBack();
+  }
+  return (
+    <>
+      <button className="btn ghost" onClick={onBack}>→ رجوع</button>
+      <h2>تظلّم من {a.user.displayName}</h2>
+      <div className="card stack">
+        <h3>المخالفة</h3>
+        <div className="row"><span className="badge bad">{ACTION[a.strike.action] ?? a.strike.action}</span>{a.strike.zeroTolerance && <span className="badge bad">صفرية</span>}<span className="muted small">{dateTime(a.strike.issuedAt)}</span></div>
+        <p>{a.strike.reason}</p>
+        <h3>حجة صاحب الحساب</h3>
+        <p>{a.reason}</p>
+        <span className="muted small">سجله: {a.history.map((h) => `${ACTION[h.action] ?? h.action}${h.voided ? " (أُلغيت)" : ""}`).join(" ← ")}</span>
+      </div>
+      <ErrorNote error={act.err} />
+      {a.status !== "open" ? <div className="note info">{a.status === "reversed" ? "قُبل التظلّم" : "رُفض التظلّم"}{a.decisionNote ? `: ${a.decisionNote}` : ""}</div> : a.strike.issuedByMe ? (
+        <div className="note sand">أنت من أصدر هذه المخالفة، فلا يمكنك البتّ في التظلّم. سيراجعه زميل لك.</div>
+      ) : (
+        <div className="card stack">
+          <Field label="سبب القرار" hint="10 أحرف على الأقل. يصل لصاحب الحساب."><textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+          <div className="row">
+            <button className="btn" disabled={act.busy || note.trim().length < 10} onClick={() => decide("reversed")}>قبول التظلّم (إلغاء المخالفة)</button>
+            <button className="btn danger" disabled={act.busy || note.trim().length < 10} onClick={() => decide("upheld")}>رفض التظلّم</button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

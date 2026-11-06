@@ -60,7 +60,7 @@ export default function Login() {
   const verify = (withProfile: boolean) =>
     run(async () => {
       try {
-        const r = await api<{ token: string; next: "mfa" | "identity" | null }>("POST", "/auth/otp/verify", {
+        const r = await api<{ token: string; next: "mfa" | "identity" | "appeal" | null }>("POST", "/auth/otp/verify", {
           phone,
           code,
           ...(withProfile ? { role, displayName: name.trim() } : {}),
@@ -68,6 +68,7 @@ export default function Login() {
         const u = await signIn(r.token);
         if (r.next === "mfa") return setStep("mfa");
         if (r.next === "identity") return router.replace("/portal/verify");
+        if (r.next === "appeal") return router.replace("/portal/account");
         router.replace(u && isStaffRole(u.role) ? "/portal/staff" : "/portal");
       } catch (e) {
         if (e instanceof ApiError && e.code === "registration_required") return setStep("register");

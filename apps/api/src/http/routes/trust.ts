@@ -6,6 +6,7 @@ import { audit } from "../../services/audit.js";
 import type { Ctx } from "../context.js";
 import { HttpError, isUniqueViolation, parse, uuidParam } from "../errors.js";
 import { guard, me } from "../guard.js";
+import { APPEAL_WINDOW_DAYS, fileAppeal } from "../../services/appeals.js";
 
 const REVIEW_WINDOW_DAYS = 30;
 const MAX_REPORTS_PER_DAY = 5;
@@ -105,12 +106,38 @@ export const trustRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     return { ok: true };
   });
 
-  // Anyone can see their own record, including while suspended.
-  app.get("/account/strikes", { preHandler: guard(ctx, { roles: ["learner", "guardian", "teacher"], anyStatus: true }) }, async (req) => {
+  // Anyone can see their own record, including while suspended or banned. The appeal state is part of it.
+  app.get("/account/strikes", { preHandler: guard(ctx, { roles: ["learner", "guardian", "teacher"], anyStatus: true, allowBanned: true }) }, async (req) => {
     const u = me(req);
-    const s = await db.query<{ level: number; action: string; reason: string; created_at: Date }>("SELECT level, action, reason, created_at FROM strikes WHERE user_id = $1 ORDER BY created_at DESC", [u.id]);
+    const now = ctx.now();
+    const s = await db.query<{ id: string; level: number; action: string; reason: string; created_at: Date; voided_at: Date | null; appeal_status: string | null }>(
+      `SELECT s.id, s.level, s.action, s.reason, s.created_at, s.voided_at, a.status AS appeal_status
+         FROM strikes s LEFT JOIN appeals a ON a.strike_id = s.id WHERE s.user_id = $1 ORDER BY s.created_at DESC`,
+      [u.id],
+    );
     const st = (await db.query<{ status: string; suspended_until: Date | null }>("SELECT status, suspended_until FROM users WHERE id = $1", [u.id])).rows[0]!;
-    return { status: st.status, suspendedUntil: st.suspended_until, strikes: s.rows.map((x) => ({ level: x.level, action: x.action, reason: x.reason, createdAt: x.created_at })) };
+    return {
+      status: st.status,
+      suspendedUntil: st.suspended_until,
+      strikes: s.rows.map((x) => ({
+        id: x.id,
+        level: x.level,
+        action: x.action,
+        reason: x.reason,
+        createdAt: x.created_at,
+        voided: Boolean(x.voided_at),
+        appealStatus: x.appeal_status,
+        canAppeal: !x.voided_at && !x.appeal_status && now.getTime() <= x.created_at.getTime() + APPEAL_WINDOW_DAYS * 86_400_000,
+      })),
+    };
+  });
+
+  app.post("/appeals", { preHandler: guard(ctx, { roles: ["learner", "guardian", "teacher"], anyStatus: true, allowBanned: true }) }, async (req, reply) => {
+    const u = me(req);
+    const b = parse(z.object({ strikeId: z.uuid(), reason: z.string().trim().min(20).max(2000) }).strict(), req.body);
+    const id = await fileAppeal(db, ctx.now(), u.id, b.strikeId, b.reason);
+    reply.code(201);
+    return { id };
   });
 
   app.get("/teacher/earnings", { preHandler: guard(ctx, { roles: ["teacher"], anyStatus: true }) }, async (req) => {

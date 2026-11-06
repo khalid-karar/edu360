@@ -150,6 +150,17 @@ Unpaid holds lapse after 15 minutes. Requests the teacher never answers are decl
 | `GET /admin/finance/payouts?status=`, `GET .../:id` | The detail shows the full IBAN and holder name; each read is audited. |
 | `POST /admin/finance/payouts/:id/approve`, `/hold`, `/mark-paid`, `/fail` | `mark-paid` takes the bank reference (transfers are made outside the system for now). `fail` releases the payments for the next run. |
 
+## Suspension cascade and appeals
+
+A suspension or ban (strike 2, strike 3 or zero tolerance) cancels every upcoming lesson of the person: a teacher's students and a learner's or guardian's teachers. Holds are voided, the other side is notified, nothing is charged. A warning changes nothing.
+
+A banned person can still sign in, but the session (`next: "appeal"`) only opens `GET /api/auth/me`, `GET /api/account/strikes`, `POST /api/appeals`, notifications and sign-out; every other route answers `account_banned`.
+
+`GET /api/account/strikes` lists own strikes with `id`, `voided`, `appealStatus` (`open | upheld | reversed | null`) and `canAppeal`.
+`POST /api/appeals` `{ strikeId, reason (20-2000 chars) }`: one appeal per strike, within 30 days of issue (`appeal_exists`, `appeal_window_closed`, `strike_already_voided`). Safety officers are notified.
+
+Safety officers: `GET /api/admin/safety/appeals?status=open|upheld|reversed`, `GET /api/admin/safety/appeals/:id` (audited), `POST /api/admin/safety/appeals/:id/decide` `{ outcome: "upheld" | "reversed", note (10+ chars) }`. The officer who issued the strike cannot decide it (`cannot_decide_own_strike`). `reversed` voids the strike: it stops counting toward the ladder (the next strike is a warning again) and, if no other live ban or suspension remains, the account (and a teacher's profile and payouts) is restored. Lessons already cancelled stay cancelled. The person is notified either way.
+
 ## Notifications (any signed-in user, including suspended or unverified)
 
 `GET /api/notifications?limit=&unread=` → `{ unread, items: [{ id, kind, title, body, link, read, createdAt }] }` (own only, newest first).

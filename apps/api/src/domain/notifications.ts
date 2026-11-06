@@ -2,7 +2,7 @@
 export type NoticeKind =
   | "booking_requested" | "booking_accepted" | "booking_declined" | "booking_cancelled" | "booking_expired_unpaid"
   | "booking_unanswered" | "lesson_completed" | "no_show" | "lesson_reminder" | "new_message"
-  | "vetting_decision" | "strike" | "dispute_opened" | "dispute_decided" | "payout_update" | "report_update";
+  | "vetting_decision" | "strike" | "dispute_opened" | "dispute_decided" | "payout_update" | "report_update" | "appeal_filed" | "appeal_decided";
 
 export interface Notice {
   title: string;
@@ -45,6 +45,8 @@ export function render(kind: NoticeKind, v: NoticeVars = {}): Notice {
     case "dispute_opened": return t("اعتراض على درس", `رُفع اعتراض على درس ${v.when ?? ""}. أُوقف تحويل المبلغ حتى البتّ فيه.`);
     case "dispute_decided": return t("صدر قرار الاعتراض", `${v.decision ?? "صدر القرار"}${v.amount ? ` (${v.amount})` : ""}.`, true);
     case "payout_update": return t("تحديث التحويل", `${v.decision ?? ""}${v.amount ? ` (${v.amount})` : ""}`, v.decision === "تم تحويل المبلغ إلى حسابك");
+    case "appeal_filed": return t("تظلّم جديد", "وصل تظلّم من مستخدم على مخالفة. راجعه من قائمة التظلّمات.");
+    case "appeal_decided": return t(v.decision === "reversed" ? "قُبل تظلّمك" : "رُفض تظلّمك", v.decision === "reversed" ? `ألغينا المخالفة وأعدنا حسابك إن كان موقوفاً.${v.note ? ` ${v.note}` : ""}` : `راجعنا تظلّمك وبقيت المخالفة.${v.note ? ` ${v.note}` : ""}`, true);
     case "report_update": return t("تحديث على بلاغك", `${v.decision ?? "تمت مراجعة بلاغك"}.`);
   }
 }

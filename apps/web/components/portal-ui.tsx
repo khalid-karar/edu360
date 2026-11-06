@@ -46,6 +46,7 @@ function Bell() {
 
 interface NavItem { href: string; label: string }
 function navFor(u: User): NavItem[] {
+  if (u.status === "banned") return [{ href: "/portal/account", label: "حسابي" }];
   if (u.role === "learner") return [{ href: "/portal/search", label: "ابحث عن معلّم" }, { href: "/portal/bookings", label: "حجوزاتي" }, { href: "/portal/account", label: "حسابي" }];
   if (u.role === "guardian") return [{ href: "/portal/search", label: "ابحث عن معلّم" }, { href: "/portal/bookings", label: "الحجوزات" }, { href: "/portal/children", label: "الأبناء" }, { href: "/portal/account", label: "حسابي" }];
   if (u.role === "teacher") return [{ href: "/portal/bookings", label: "الحجوزات" }, { href: "/portal/availability", label: "أوقاتي" }, { href: "/portal/earnings", label: "أرباحي" }, { href: "/portal/apply", label: "ملفي" }, { href: "/portal/account", label: "حسابي" }];
@@ -62,7 +63,9 @@ export function Shell({ roles, children, allowPending }: { roles?: User["role"][
     if (!ready) return;
     if (!user) router.replace("/portal/login");
     else if (isStaffRole(user.role) && !user.mfaVerified) router.replace("/portal/login");
-    else if (user.status === "pending" && !allowPending) router.replace("/portal/verify");
+    else if (user.status === "banned") {
+      if (path !== "/portal/account" && path !== "/portal/notifications") router.replace("/portal/account");
+    } else if (user.status === "pending" && !allowPending) router.replace("/portal/verify");
     else if (roles && !roles.includes(user.role)) router.replace("/portal");
   }, [ready, user, roles, allowPending, router]);
 

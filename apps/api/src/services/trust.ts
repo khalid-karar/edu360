@@ -4,7 +4,7 @@ import { HttpError } from "../http/errors.js";
 import type { PaymentProvider } from "../payments/provider.js";
 import { audit } from "./audit.js";
 import { notify } from "./notifications.js";
-import { cancelUpcomingForTeacher } from "./bookings.js";
+import { cancelUpcomingForPayer, cancelUpcomingForTeacher } from "./bookings.js";
 
 /** A strike counts toward the ladder for 12 months. */
 export const STRIKE_ACTIVE_DAYS = 365;
@@ -46,7 +46,7 @@ export async function issueStrike(
       if (!r.rowCount) throw new HttpError(422, "report_mismatch");
     }
     const prior = (
-      await tx.query<{ n: number }>("SELECT count(*)::int AS n FROM strikes WHERE user_id = $1 AND created_at > $2", [
+      await tx.query<{ n: number }>("SELECT count(*)::int AS n FROM strikes WHERE user_id = $1 AND voided_at IS NULL AND created_at > $2", [
         input.userId,
         new Date(now.getTime() - STRIKE_ACTIVE_DAYS * DAY),
       ])
@@ -81,7 +81,10 @@ export async function issueStrike(
   });
 
   let cancelledBookings = 0;
-  if (res.action !== "warn" && res.teacher) cancelledBookings = (await cancelUpcomingForTeacher(d, input.userId)).cancelled;
+  if (res.action !== "warn") {
+    // Nobody is left waiting for a lesson that cannot happen: a suspended teacher's students, or a suspended payer's teachers.
+    cancelledBookings = (res.teacher ? await cancelUpcomingForTeacher(d, input.userId) : await cancelUpcomingForPayer(d, input.userId)).cancelled;
+  }
   return { strikeId: res.strikeId, level: res.level, action: res.action, suspendedUntil: res.suspendedUntil, cancelledBookings };
 }
 

@@ -34,6 +34,8 @@ export interface GuardOpts {
   allowUnverifiedMfa?: boolean;
   /** Let suspended users through as well (read-only account pages). */
   anyStatus?: boolean;
+  /** Let banned users through. Only the routes a banned person needs: who am I, my record, appeal, notifications, sign out. */
+  allowBanned?: boolean;
 }
 
 /** Route pre-handler: who is calling, are they allowed, and have staff passed MFA. */
@@ -43,7 +45,7 @@ export function guard(ctx: Ctx, opts: GuardOpts = {}) {
     if (!m) throw new HttpError(401, "unauthenticated");
     const s = await findSession(ctx.db, m[1]!, ctx.now());
     if (!s) throw new HttpError(401, "unauthenticated");
-    if (s.status === "banned") throw new HttpError(403, "account_banned");
+    if (s.status === "banned" && !opts.allowBanned) throw new HttpError(403, "account_banned");
     const user: AuthUser = {
       id: s.user_id,
       role: s.role as UserRole,

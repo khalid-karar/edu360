@@ -67,7 +67,7 @@ export const authRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
         return u.rows[0]!;
       });
     }
-    if (user.status === "banned") throw new HttpError(403, "account_banned");
+    // A banned person still gets a session, but it opens nothing except their record and the appeal form (see guard allowBanned).
 
     const staff = isStaff(user.role);
     if (staff) {
@@ -90,7 +90,7 @@ export const authRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
       token: session.token,
       expiresAt: session.expiresAt.toISOString(),
       user: { id: user.id, role: user.role, status: user.status, displayName: user.display_name },
-      next: staff ? "mfa" : user.status === "pending" ? "identity" : null,
+      next: staff ? "mfa" : user.status === "banned" ? "appeal" : user.status === "pending" ? "identity" : null,
     };
   });
 
@@ -130,7 +130,7 @@ export const authRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     return { ok: true };
   });
 
-  const loose = { allowUnverifiedMfa: true, anyStatus: true, allowPending: true } as const;
+  const loose = { allowUnverifiedMfa: true, anyStatus: true, allowPending: true, allowBanned: true } as const;
   app.get("/auth/me", { preHandler: guard(ctx, loose) }, async (req) => {
     const u = me(req);
     return { id: u.id, role: u.role, status: u.status, displayName: u.displayName, mfaVerified: u.mfaVerified };

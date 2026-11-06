@@ -118,6 +118,7 @@ for (const t of teachers) {
 const staff = [
   ["vetting_officer", "+966500000201", "موظف التدقيق"],
   ["safety_officer", "+966500000202", "موظف الأمان"],
+  ["safety_officer", "+966500000206", "موظف الأمان الثاني"],
   ["finance_officer", "+966500000203", "موظف المالية"],
   ["finance_officer", "+966500000205", "موظف المالية الثاني"],
   ["super_admin", "+966500000204", "مدير النظام"],

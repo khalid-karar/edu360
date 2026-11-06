@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { audit } from "../../services/audit.js";
 import { notify } from "../../services/notifications.js";
+import { decideAppeal } from "../../services/appeals.js";
 import { issueStrike } from "../../services/trust.js";
 import type { Ctx } from "../context.js";
 import { HttpError, parse, uuidParam } from "../errors.js";
@@ -144,5 +145,49 @@ export const safetyRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     if (!u) throw new HttpError(404, "not_found");
     const s = await db.query<{ id: string; level: number; action: string; zero_tolerance: boolean; reason: string; created_at: Date }>("SELECT id, level, action, zero_tolerance, reason, created_at FROM strikes WHERE user_id = $1 ORDER BY created_at DESC", [id]);
     return { user: { id, displayName: u.display_name, role: u.role, status: u.status, suspendedUntil: u.suspended_until }, strikes: s.rows.map((x) => ({ id: x.id, level: x.level, action: x.action, zeroTolerance: x.zero_tolerance, reason: x.reason, createdAt: x.created_at })) };
+  });
+
+  // Appeals against strikes. The officer who issued the strike cannot decide it.
+  app.get("/admin/safety/appeals", { preHandler: pre }, async (req) => {
+    const { status } = parse(z.object({ status: z.enum(["open", "upheld", "reversed"]).default("open") }), req.query);
+    const r = await db.query<{ id: string; status: string; created_at: Date; display_name: string; role: string; action: string; level: number }>(
+      `SELECT a.id, a.status, a.created_at, u.display_name, u.role, s.action, s.level
+         FROM appeals a JOIN users u ON u.id = a.user_id JOIN strikes s ON s.id = a.strike_id
+        WHERE a.status = $1 ORDER BY a.created_at LIMIT ${LIMIT}`,
+      [status],
+    );
+    return { items: r.rows.map((a) => ({ id: a.id, status: a.status, createdAt: a.created_at, user: { displayName: a.display_name, role: a.role }, strike: { action: a.action, level: a.level } })) };
+  });
+
+  app.get("/admin/safety/appeals/:id", { preHandler: pre }, async (req) => {
+    const s = me(req);
+    const id = idOf(req);
+    const a = (
+      await db.query<{ id: string; status: string; reason: string; decision_note: string | null; created_at: Date; user_id: string; display_name: string; role: string; user_status: string; strike_id: string; action: string; level: number; strike_reason: string; zero_tolerance: boolean; issued_by: string | null; strike_at: Date; report_id: string | null }>(
+        `SELECT a.id, a.status, a.reason, a.decision_note, a.created_at, a.user_id, u.display_name, u.role, u.status AS user_status,
+                s.id AS strike_id, s.action, s.level, s.reason AS strike_reason, s.zero_tolerance, s.issued_by, s.created_at AS strike_at, s.report_id
+           FROM appeals a JOIN users u ON u.id = a.user_id JOIN strikes s ON s.id = a.strike_id WHERE a.id = $1`,
+        [id],
+      )
+    ).rows[0];
+    if (!a) throw new HttpError(404, "not_found");
+    const history = await db.query<{ level: number; action: string; created_at: Date; voided_at: Date | null }>("SELECT level, action, created_at, voided_at FROM strikes WHERE user_id = $1 ORDER BY created_at DESC", [a.user_id]);
+    await audit(db, { actorId: s.id, action: "safety.viewed_appeal", targetType: "appeal", targetId: id });
+    return {
+      id: a.id,
+      status: a.status,
+      reason: a.reason,
+      decisionNote: a.decision_note,
+      createdAt: a.created_at,
+      user: { id: a.user_id, displayName: a.display_name, role: a.role, status: a.user_status },
+      strike: { id: a.strike_id, action: a.action, level: a.level, reason: a.strike_reason, zeroTolerance: a.zero_tolerance, issuedAt: a.strike_at, reportId: a.report_id, issuedByMe: a.issued_by === s.id },
+      history: history.rows.map((x) => ({ level: x.level, action: x.action, createdAt: x.created_at, voided: Boolean(x.voided_at) })),
+    };
+  });
+
+  app.post("/admin/safety/appeals/:id/decide", { preHandler: pre }, async (req) => {
+    const s = me(req);
+    const b = parse(z.object({ outcome: z.enum(["upheld", "reversed"]), note: z.string().trim().min(10).max(1000) }).strict(), req.body);
+    return decideAppeal({ db, now: ctx.now }, s.id, idOf(req), b.outcome, b.note);
   });
 };

@@ -7,7 +7,7 @@ import { guard, me } from "../guard.js";
 /** Your own notifications only. Suspended users can still read them: that is where the reason is explained. */
 export const notificationRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
   const { db } = ctx;
-  const pre = guard(ctx, { roles: ["learner", "guardian", "teacher", "vetting_officer", "safety_officer", "finance_officer", "super_admin"], allowPending: true, anyStatus: true });
+  const pre = guard(ctx, { roles: ["learner", "guardian", "teacher", "vetting_officer", "safety_officer", "finance_officer", "super_admin"], allowPending: true, anyStatus: true, allowBanned: true });
 
   app.get("/notifications", { preHandler: pre }, async (req) => {
     const u = me(req);

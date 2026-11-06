@@ -11,6 +11,7 @@ export default function Home() {
   useEffect(() => {
     if (!ready) return;
     if (!user) return router.replace("/portal/login");
+    if (user.status === "banned") return router.replace("/portal/account");
     if (user.status === "pending") return router.replace("/portal/verify");
     if (isStaffRole(user.role)) return router.replace(user.mfaVerified ? "/portal/staff" : "/portal/login");
     if (user.role !== "teacher") return router.replace("/portal/search");

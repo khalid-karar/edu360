@@ -453,3 +453,33 @@ export async function cancelUpcomingForTeacher(d: BookingDeps, teacherId: string
   }
   return out;
 }
+
+/**
+ * Used when a learner or guardian is suspended or banned: their upcoming lessons are cancelled by the system,
+ * holds are released, and each teacher is told. The person themselves already got the strike notice.
+ */
+export async function cancelUpcomingForPayer(d: BookingDeps, payerId: string): Promise<{ cancelled: number; failed: number }> {
+  const now = d.now();
+  const out = { cancelled: 0, failed: 0 };
+  const rows = await d.db.query<{ id: string }>(
+    "SELECT id FROM bookings WHERE payer_id = $1 AND status IN ('awaiting_payment','requested','confirmed') AND starts_at > $2",
+    [payerId, now],
+  );
+  for (const row of rows.rows) {
+    try {
+      await d.db.tx(async (tx) => {
+        const b = await lockBooking(tx, row.id);
+        if (b.status !== "awaiting_payment" && b.status !== "requested" && b.status !== "confirmed") return;
+        await move(tx, b, "cancel", { cancelledBy: "system" });
+        await applySettlement(tx, d, b, await paymentOf(tx, b.id), settleDeclined());
+        await audit(tx, { actorId: null, action: "booking.cancelled_payer_suspended", targetType: "booking", targetId: b.id });
+        if (b.status !== "awaiting_payment") await notify(tx, { userId: b.teacher_id, kind: "booking_cancelled", vars: { by: "system", when: riyadhWhen(b.starts_at) }, link: `/portal/booking?id=${b.id}` }, now);
+      });
+      out.cancelled++;
+    } catch (e) {
+      out.failed++;
+      console.error("cancel for suspended payer failed", row.id, e);
+    }
+  }
+  return out;
+}
