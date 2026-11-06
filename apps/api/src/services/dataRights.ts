@@ -1,3 +1,4 @@
+import type { ObjectStorage } from "../storage/storage.js";
 import type { Db } from "../db/db.js";
 import { HttpError } from "../http/errors.js";
 import { audit } from "./audit.js";
@@ -125,7 +126,8 @@ export async function cancelDeletion(db: Db, now: Date, userId: string) {
  * the audit log (financial and safety records), flagged messages (evidence), star ratings. For banned people also the hashed national ID,
  * so a ban cannot be dodged by re-registering. Everything else personal is blanked or removed.
  */
-export async function eraseUser(db: Db, now: Date, userId: string): Promise<void> {
+export async function eraseUser(db: Db, now: Date, userId: string, storage?: ObjectStorage): Promise<void> {
+  const fileKeys: string[] = [];
   await db.tx(async (tx) => {
     const kids = (await tx.query<{ id: string }>("SELECT id FROM users WHERE guardian_id = $1", [userId])).rows.map((r) => r.id);
     const ids = [userId, ...kids];
@@ -148,6 +150,9 @@ export async function eraseUser(db: Db, now: Date, userId: string): Promise<void
     );
     await tx.query("DELETE FROM availability WHERE teacher_id = $1", [userId]);
     await tx.query("UPDATE credentials SET file_url = 'deleted' WHERE teacher_id = $1", [userId]);
+    // Uploaded scans (ID and certificates) are personal data: the rows go now, the stored bytes right after the commit.
+    const gone = await tx.query<{ key: string }>("DELETE FROM uploads WHERE owner_id = ANY($1::uuid[]) RETURNING key", [ids]);
+    fileKeys.push(...gone.rows.map((r) => r.key));
     await tx.query("DELETE FROM guardian_teacher_approvals WHERE guardian_id = $1", [userId]);
     await tx.query("DELETE FROM staff_mfa WHERE user_id = $1", [userId]);
     // Words people wrote are removed unless a flag points at them (safety evidence).
@@ -172,10 +177,11 @@ export async function eraseUser(db: Db, now: Date, userId: string): Promise<void
       detail: { children: kids.length, keptNationalIdHash: banned, kept: ["bookings", "payments", "payouts", "disputes", "strikes", "appeals", "reports", "audit_log", "flagged_messages", "ratings"] },
     });
   });
+  if (storage) for (const k of fileKeys) await storage.delete(k);
 }
 
 /** Run every minute: erase accounts whose cooling-off ended, unless something is still open (then say why, retry later). */
-export async function processDeletions(db: Db, now: Date): Promise<{ erased: number; postponed: number }> {
+export async function processDeletions(db: Db, now: Date, storage?: ObjectStorage): Promise<{ erased: number; postponed: number }> {
   const due = (await db.query<{ user_id: string }>("SELECT user_id FROM deletion_requests WHERE status = 'requested' AND due_at <= $1 ORDER BY due_at LIMIT 20", [now])).rows;
   let erased = 0;
   let postponed = 0;
@@ -185,7 +191,7 @@ export async function processDeletions(db: Db, now: Date): Promise<{ erased: num
       await db.query("UPDATE deletion_requests SET blocked_reasons = $2 WHERE user_id = $1 AND status = 'requested'", [user_id, blocked]);
       postponed++;
     } else {
-      await eraseUser(db, now, user_id);
+      await eraseUser(db, now, user_id, storage);
       erased++;
     }
   }

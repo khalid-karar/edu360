@@ -1,3 +1,4 @@
+import { MemoryStorage } from "../storage/storage.js";
 /**
  * Load and race test against a real PostgreSQL. Not part of the normal test run.
  *   createdb ilmak_load && DATABASE_URL=postgres://localhost/ilmak_load node dist/dev/load.js
@@ -26,12 +27,12 @@ const HOUR = 3_600_000;
 const config: Config = {
   port: PORT, databaseUrl: process.env["DATABASE_URL"]!, providers: "mock", payments: "mock", webhookSecret: "x",
   waitlistFile: "/tmp/ilmak-load-waitlist.jsonl", idHashKey: randomBytes(32), mfaEncKey: randomBytes(32), otpKey: randomBytes(32),
-  sessionHours: 24, staffSessionHours: 8, uploadsPrefix: "uploads/", echoOtp: true,
+  sessionHours: 24, staffSessionHours: 8, uploadsPrefix: "uploads/", uploadDir: "/tmp/ilmak-load-storage", uploadMaxBytes: 5_000_000, echoOtp: true,
 };
 const db = pgDb(config.databaseUrl);
 await migrate(db);
 const payments = new MockPaymentProvider();
-const ctx = { db, config, sms: new MockSmsProvider(), nafath: new MockNafathProvider(), payments, video: new MockVideo(), mockPayments: payments, now: () => new Date(), limits: { global: 1e9, auth: 1e9 } };
+const ctx = { db, storage: new MemoryStorage(), config, sms: new MockSmsProvider(), nafath: new MockNafathProvider(), payments, video: new MockVideo(), mockPayments: payments, now: () => new Date(), limits: { global: 1e9, auth: 1e9 } };
 const app = buildApp(ctx);
 await app.listen({ port: PORT, host: "127.0.0.1" });
 

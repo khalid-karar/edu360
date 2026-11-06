@@ -1,3 +1,4 @@
+import { MemoryStorage } from "../../src/storage/storage.js";
 import { PGlite } from "@electric-sql/pglite";
 import type { Config } from "../../src/config.js";
 import type { Db } from "../../src/db/db.js";
@@ -24,6 +25,8 @@ export const config: Config = {
   sessionHours: 24 * 30,
   staffSessionHours: 8,
   uploadsPrefix: "uploads/",
+  uploadDir: "unused",
+  uploadMaxBytes: 100_000,
   echoOtp: true,
 };
 
@@ -49,7 +52,8 @@ export async function makeHarness() {
   const nafath = new MockNafathProvider(() => t);
   const payments = new MockPaymentProvider();
   const video = new MockVideo();
-  const ctx = { db, config, sms, nafath, payments, video, mockPayments: payments, now: clock.now, limits: { global: 100_000, auth: 100_000 } };
+  const storage = new MemoryStorage();
+  const ctx = { db, storage, config, sms, nafath, payments, video, mockPayments: payments, now: clock.now, limits: { global: 100_000, auth: 100_000 } };
   const app = buildApp(ctx);
   await app.ready();
 
@@ -71,6 +75,17 @@ export async function makeHarness() {
     const v = await call("POST", "/api/auth/otp/verify", { body: { phone, code: rq.body.mock_code, role, displayName: name } });
     if (v.status !== 200) throw new Error(`signup failed: ${JSON.stringify(v.body)}`);
     return { phone, token: v.body.token as string, id: v.body.user.id as string };
+  }
+
+  /** Uploads a file the way the browser does: raw bytes with a Content-Type. Defaults to a tiny PDF. */
+  async function upload(token: string | undefined, data: Buffer = Buffer.from("%PDF-1.4\n%test\n"), contentType = "application/pdf"): Promise<Res> {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/teacher/uploads",
+      headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), "content-type": contentType },
+      payload: data,
+    });
+    return { status: res.statusCode, body: res.body ? JSON.parse(res.body) : null };
   }
 
   /** Runs Nafath for a signed-in user. IDs ending in 0 are rejected and ending in 9 are minors in the mock. */
@@ -112,7 +127,7 @@ export async function makeHarness() {
     return r.rows[0]!.id;
   }
 
-  return { db, app, ctx, video, call, clock, sms, nafath, payments, signup, verifyIdentity, staff, category };
+  return { db, app, ctx, storage, upload, video, call, clock, sms, nafath, payments, signup, verifyIdentity, staff, category };
 }
 
 /** A checksum-valid Saudi IBAN for tests. */

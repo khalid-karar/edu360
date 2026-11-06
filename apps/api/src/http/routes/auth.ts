@@ -31,7 +31,7 @@ interface UserRow {
 }
 
 export const authRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
-  const limit = rateLimit(ctx.limits.auth);
+  const limit = rateLimit(ctx.limits.auth, { name: "auth", store: ctx.rateStore });
   const otpDeps = { db: ctx.db, sms: ctx.sms, key: ctx.config.otpKey, now: ctx.now };
   const mfaFailures = new Map<string, number>();
 

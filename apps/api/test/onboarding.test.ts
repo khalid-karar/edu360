@@ -78,6 +78,8 @@ async function readyTeacher(nationalId: string) {
   const t = await h.signup("teacher", "معلم");
   await h.verifyIdentity(t.token, nationalId);
   const key = (f: string) => `uploads/${t.id}/${f}`;
+  const scan = await h.upload(t.token);
+  expect(scan.status).toBe(201);
   const calls = [
     await h.call("PUT", "/api/teacher/profile", {
       token: t.token,
@@ -89,7 +91,7 @@ async function readyTeacher(nationalId: string) {
       },
     }),
     await h.call("PUT", "/api/teacher/categories", { token: t.token, body: { categories: [{ categoryId: catId, priceHalalas: 10000 }] } }),
-    await h.call("POST", "/api/teacher/credentials", { token: t.token, body: { categoryId: catId, kind: "ijazah", fileKey: key("ijazah.pdf") } }),
+    await h.call("POST", "/api/teacher/credentials", { token: t.token, body: { categoryId: catId, kind: "ijazah", fileKey: scan.body.fileKey } }),
     await h.call("POST", "/api/teacher/code-of-conduct/sign", { token: t.token, body: { version: CONDUCT_VERSION } }),
     await h.call("PUT", "/api/teacher/payout", { token: t.token, body: { iban: makeIban(), holderName: NAME } }),
   ];

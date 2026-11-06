@@ -44,7 +44,7 @@ export function buildApp(ctx: Ctx): FastifyInstance {
     done(null, Object.fromEntries(new URLSearchParams(body as string)));
   });
 
-  app.addHook("onRequest", rateLimit(ctx.limits.global));
+  app.addHook("onRequest", rateLimit(ctx.limits.global, { name: "global", store: ctx.rateStore }));
   app.addHook("onSend", async (_req, reply) => {
     reply.header("cache-control", "no-store");
     reply.header("x-content-type-options", "nosniff");

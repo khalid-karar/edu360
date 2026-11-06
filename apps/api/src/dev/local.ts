@@ -1,3 +1,4 @@
+import { MemoryStorage } from "../storage/storage.js";
 /**
  * Local sandbox: the whole API on an in-memory PostgreSQL (PGlite) with every provider faked and some
  * demo data, so the web app can be developed and clicked through with nothing installed.
@@ -32,6 +33,8 @@ const config: Config = {
   sessionHours: 24 * 30,
   staffSessionHours: 8,
   uploadsPrefix: "uploads/",
+  uploadDir: "/tmp/ilmak-local-storage",
+  uploadMaxBytes: 5_000_000,
   echoOtp: true,
 };
 
@@ -39,7 +42,7 @@ const db = pgliteDb(new PGlite());
 await migrate(db);
 
 const payments = new MockPaymentProvider();
-const ctx = { db, config, sms: new MockSmsProvider(), nafath: new MockNafathProvider(), payments, video: new MockVideo(), mockPayments: payments, now: () => new Date(), limits: { global: 100_000, auth: 100_000 } };
+const ctx = { db, storage: new MemoryStorage(), config, sms: new MockSmsProvider(), nafath: new MockNafathProvider(), payments, video: new MockVideo(), mockPayments: payments, now: () => new Date(), limits: { global: 100_000, auth: 100_000 } };
 
 // ── demo data ──
 const cats = [

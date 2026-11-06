@@ -1,3 +1,5 @@
+import { ALLOWED_TYPES } from "../../domain/uploads.js";
+import { readUploadById, saveUpload } from "../../services/uploads.js";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import type { Db } from "../../db/db.js";
@@ -6,7 +8,7 @@ import { namesMatch } from "../../domain/names.js";
 import { CONDUCT_VERSION, canReapply } from "../../domain/vetting.js";
 import { audit } from "../../services/audit.js";
 import type { Ctx } from "../context.js";
-import { HttpError, parse } from "../errors.js";
+import { HttpError, parse, uuidParam } from "../errors.js";
 import { guard, me } from "../guard.js";
 
 const MAX_CATEGORIES = 3;
@@ -181,6 +183,23 @@ export const teacherRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     return { ok: true };
   });
 
+  // Raw file bodies. The guard runs as onRequest, before the body is read, so an anonymous caller cannot make the server buffer megabytes.
+  app.addContentTypeParser([...ALLOWED_TYPES], { parseAs: "buffer", bodyLimit: ctx.config.uploadMaxBytes }, (_req, body, done) => done(null, body));
+
+  app.post("/teacher/uploads", { onRequest: pre, bodyLimit: ctx.config.uploadMaxBytes }, async (req, reply) => {
+    const u = me(req);
+    const saved = await saveUpload(ctx, u.id, req.body, req.headers["content-type"] ?? "");
+    reply.code(201);
+    return saved;
+  });
+
+  app.get("/teacher/uploads/:id", { preHandler: pre }, async (req, reply) => {
+    const u = me(req);
+    const f = await readUploadById(ctx, uuidParam((req.params as { id?: string }).id), u.id);
+    if (!f) throw new HttpError(404, "not_found");
+    return reply.header("content-type", f.contentType).header("content-disposition", 'attachment; filename="document"').send(f.data);
+  });
+
   app.post("/teacher/credentials", { preHandler: pre }, async (req, reply) => {
     const u = me(req);
     const b = parse(
@@ -193,6 +212,9 @@ export const teacherRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     if (!mine.rowCount) throw new HttpError(422, "category_not_selected");
     const n = await db.query<{ n: number }>("SELECT count(*)::int AS n FROM credentials WHERE teacher_id = $1 AND category_id = $2", [u.id, b.categoryId]);
     if ((n.rows[0]?.n ?? 0) >= MAX_CREDENTIALS_PER_CATEGORY) throw new HttpError(422, "too_many_credentials");
+    // The file must be one this teacher uploaded through the endpoint above, not just a well-formed name.
+    const owned = await db.query("SELECT 1 FROM uploads WHERE key = $1 AND owner_id = $2", [b.fileKey, u.id]);
+    if (!owned.rowCount) throw new HttpError(422, "unknown_upload");
     const r = await db.query<{ id: string }>(
       "INSERT INTO credentials (teacher_id, category_id, kind, file_url) VALUES ($1,$2,$3,$4) RETURNING id",
       [u.id, b.categoryId, b.kind, b.fileKey],

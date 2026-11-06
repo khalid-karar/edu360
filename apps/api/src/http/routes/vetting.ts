@@ -1,3 +1,4 @@
+import { readUploadByKey } from "../../services/uploads.js";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { checkDecision, RUBRIC_KEYS, RUBRIC_MAX_EACH, rubricTotal, type Rubric } from "../../domain/vetting.js";
@@ -61,6 +62,19 @@ export const vettingRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     const creds = await db.query("SELECT id, category_id, kind, file_url, verdict, reviewed_at FROM credentials WHERE teacher_id = $1 ORDER BY id", [id]);
     const reviews = await db.query("SELECT officer_id, decision, rubric, reason, created_at FROM vetting_reviews WHERE teacher_id = $1 ORDER BY created_at DESC", [id]);
     return { teacher: t, categories: cats.rows, credentials: creds.rows, reviews: reviews.rows };
+  });
+
+  // Officers open a credential scan only through here; every view is written to the audit log.
+  app.get("/admin/vetting/credentials/:id/file", { preHandler: pre }, async (req, reply) => {
+    const officer = me(req);
+    const id = uuidParam((req.params as { id?: string }).id);
+    const c = (await db.query<{ teacher_id: string; file_url: string }>("SELECT teacher_id, file_url FROM credentials WHERE id = $1", [id])).rows[0];
+    if (!c) throw new HttpError(404, "not_found");
+    const up = (await db.query<{ content_type: string }>("SELECT content_type FROM uploads WHERE key = $1", [c.file_url])).rows[0];
+    const f = up ? await readUploadByKey(ctx, c.file_url, up.content_type) : null;
+    if (!f) throw new HttpError(404, "not_found");
+    await audit(db, { actorId: officer.id, action: "credential.file_viewed", targetType: "credential", targetId: id, detail: { teacherId: c.teacher_id } });
+    return reply.header("content-type", f.contentType).header("content-disposition", 'attachment; filename="credential"').send(f.data);
   });
 
   app.post("/admin/vetting/credentials/:id/review", { preHandler: pre }, async (req) => {

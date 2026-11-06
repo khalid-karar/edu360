@@ -27,6 +27,11 @@ const Env = z.object({
   LIVEKIT_URL: z.string().min(1).optional(),
   LIVEKIT_API_KEY: z.string().min(1).optional(),
   LIVEKIT_API_SECRET: z.string().min(16).optional(),
+  /** Where uploaded files are kept on disk (test server / single machine). */
+  UPLOAD_DIR: z.string().default("./data/storage"),
+  UPLOAD_MAX_BYTES: z.coerce.number().int().positive().max(20_000_000).default(5_000_000),
+  /** Shared rate-limit counters. Without it each API process counts on its own, which is fine for one process only. */
+  REDIS_URL: z.string().min(1).optional(),
   /** Allowed prefix for uploaded file keys; real storage issues keys under it. */
   UPLOADS_PREFIX: z.string().default("uploads/"),
 });
@@ -45,6 +50,9 @@ export interface Config {
   sessionHours: number;
   staffSessionHours: number;
   uploadsPrefix: string;
+  uploadDir: string;
+  uploadMaxBytes: number;
+  redisUrl?: string;
   video?: { kind: "mock" } | { kind: "livekit"; url: string; apiKey: string; apiSecret: string };
   /** Mock mode only: return the one-time code in the response. Real SMS never echoes it. */
   echoOtp: boolean;
@@ -75,6 +83,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     sessionHours: e.SESSION_HOURS,
     staffSessionHours: e.STAFF_SESSION_HOURS,
     uploadsPrefix: e.UPLOADS_PREFIX,
+    uploadDir: e.UPLOAD_DIR,
+    uploadMaxBytes: e.UPLOAD_MAX_BYTES,
+    ...(e.REDIS_URL ? { redisUrl: e.REDIS_URL } : {}),
     echoOtp: e.PROVIDERS === "mock",
   };
 }

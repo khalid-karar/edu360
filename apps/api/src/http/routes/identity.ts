@@ -19,7 +19,7 @@ function ageOn(dob: string, now: Date): number {
 }
 
 export const identityRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
-  const limit = rateLimit(ctx.limits.auth);
+  const limit = rateLimit(ctx.limits.auth, { name: "identity", store: ctx.rateStore });
   // Learners may verify too (optional for them). Staff and minors never do.
   const pre = [limit, guard(ctx, { roles: ["learner", "guardian", "teacher"], allowPending: true })];
   const idHash = (nationalId: string) => hmacHex(ctx.config.idHashKey, nationalId);
