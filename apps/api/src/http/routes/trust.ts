@@ -146,11 +146,11 @@ export const trustRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     const sums = (
       await db.query<{ held: string; available: string; in_payout: string }>(
         `SELECT
-           COALESCE(sum(CASE WHEN p.payout_id IS NULL AND p.payout_eligible_at >  $2 THEN p.captured_halalas - p.refunded_halalas - p.commission_halalas END),0) AS held,
-           COALESCE(sum(CASE WHEN p.payout_id IS NULL AND p.payout_eligible_at <= $2 THEN p.captured_halalas - p.refunded_halalas - p.commission_halalas END),0) AS available,
-           COALESCE(sum(CASE WHEN o.status IN ('pending','approved','on_hold') THEN p.captured_halalas - p.refunded_halalas - p.commission_halalas END),0) AS in_payout
+           COALESCE(sum(CASE WHEN p.payout_id IS NULL AND p.payout_eligible_at >  $2 THEN p.captured_halalas - p.refunded_halalas - p.commission_halalas + p.platform_credit_halalas END),0) AS held,
+           COALESCE(sum(CASE WHEN p.payout_id IS NULL AND p.payout_eligible_at <= $2 THEN p.captured_halalas - p.refunded_halalas - p.commission_halalas + p.platform_credit_halalas END),0) AS available,
+           COALESCE(sum(CASE WHEN o.status IN ('pending','approved','on_hold') THEN p.captured_halalas - p.refunded_halalas - p.commission_halalas + p.platform_credit_halalas END),0) AS in_payout
          FROM payments p JOIN bookings b ON b.id = p.booking_id LEFT JOIN payouts o ON o.id = p.payout_id
-        WHERE b.teacher_id = $1 AND p.status IN ('captured','partially_refunded')`,
+        WHERE b.teacher_id = $1 AND (p.status IN ('captured','partially_refunded') OR (p.status = 'refunded' AND p.platform_credit_halalas > 0))`,
         [u.id, now],
       )
     ).rows[0]!;

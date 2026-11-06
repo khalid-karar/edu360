@@ -11,6 +11,7 @@ import {
   reportNoShow,
 } from "../../services/bookings.js";
 import { listMessages, postMessage } from "../../services/chat.js";
+import { claimGuarantee, guaranteeStatus } from "../../services/guarantee.js";
 import type { Ctx } from "../context.js";
 import { HttpError, parse, uuidParam } from "../errors.js";
 import { guard, me } from "../guard.js";
@@ -44,6 +45,8 @@ interface ViewRow {
   pay_status: string | null;
   captured_halalas: number | null;
   commission_halalas: number | null;
+  refunded_halalas: number | null;
+  platform_credit_halalas: number | null;
 }
 
 const SELECT = `
@@ -51,7 +54,7 @@ const SELECT = `
          b.teacher_id, tu.display_name AS teacher_name, b.payer_id,
          b.learner_id, lu.display_name AS learner_name, lu.role AS learner_role,
          b.category_id, c.name_ar AS category_name,
-         p.status AS pay_status, p.captured_halalas, p.commission_halalas
+         p.status AS pay_status, p.captured_halalas, p.commission_halalas, p.refunded_halalas, p.platform_credit_halalas
     FROM bookings b
     JOIN users tu ON tu.id = b.teacher_id
     JOIN users lu ON lu.id = b.learner_id
@@ -77,7 +80,8 @@ function view(r: ViewRow, viewerId: string) {
       ? {
           status: r.pay_status,
           capturedHalalas: r.captured_halalas ?? 0,
-          ...(asTeacher ? { commissionHalalas: r.commission_halalas ?? 0, netHalalas: (r.captured_halalas ?? 0) - (r.commission_halalas ?? 0) } : {}),
+          refundedHalalas: r.refunded_halalas ?? 0,
+          ...(asTeacher ? { commissionHalalas: r.commission_halalas ?? 0, platformCreditHalalas: r.platform_credit_halalas ?? 0, netHalalas: (r.captured_halalas ?? 0) - (r.refunded_halalas ?? 0) - (r.commission_halalas ?? 0) + (r.platform_credit_halalas ?? 0) } : {}),
         }
       : null,
   };
@@ -179,5 +183,16 @@ export const bookingRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     const u = me(req);
     const { after } = parse(z.object({ after: z.iso.datetime({ offset: true }).optional() }), req.query);
     return { items: await listMessages(db, u.id, idOf(req), after ? new Date(after) : undefined) };
+  });
+
+  // First-lesson guarantee: see whether it applies, and claim it. The refund is full and immediate.
+  app.get("/bookings/:id/guarantee", { preHandler: participant }, async (req) => {
+    return guaranteeStatus(db, ctx.now(), me(req).id, idOf(req));
+  });
+  app.post("/bookings/:id/guarantee", { preHandler: bookers }, async (req) => {
+    const u = me(req);
+    const { why } = parse(z.object({ why: z.enum(["not_a_good_fit", "teacher_unprepared", "teaching_style", "technical", "other"]) }).strict(), req.body);
+    const r = await claimGuarantee({ db, payments: ctx.payments, now: ctx.now }, u.id, idOf(req), why);
+    return { ...r, booking: await one(db, idOf(req), u.id) };
   });
 };

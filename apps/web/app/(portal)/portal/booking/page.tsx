@@ -35,6 +35,7 @@ function Body() {
   const [err, setErr] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const [panel, setPanel] = useState<"" | "dispute" | "review" | "report">("");
+  const [guar, setGuar] = useState<{ eligible: boolean; reason?: string; until?: string } | null>(null);
   const now = useNow();
 
   const load = useCallback(async (bid: string) => {
@@ -50,6 +51,13 @@ function Body() {
     const t = setInterval(() => load(id), 10000);
     return () => clearInterval(t);
   }, [id, load]);
+
+  const done = b?.status === "completed" && b.viewerRole !== "teacher";
+  const payState = b?.payment?.status;
+  useEffect(() => {
+    if (!id || !done) { setGuar(null); return; }
+    api<{ eligible: boolean; reason?: string; until?: string }>("GET", `/bookings/${id}/guarantee`).then(setGuar).catch(() => setGuar(null));
+  }, [id, done, payState]);
 
   async function act(path: string, body?: unknown, confirmText?: string) {
     if (confirmText && !window.confirm(confirmText)) return;
@@ -126,6 +134,14 @@ function Body() {
 
       <ErrorNote error={err} />
 
+      {!teacher && b.status === "completed" && guar?.eligible && <Guarantee id={id} until={guar.until} onDone={() => { load(id); setGuar(null); }} />}
+      {!teacher && b.payment && b.payment.refundedHalalas > 0 && b.payment.status === "refunded" && (
+        <div className="note info">استُرد مبلغ هذا الدرس ({sar(b.payment.refundedHalalas)}). يصل إلى بطاقتك خلال أيام العمل المعتادة للبنك.</div>
+      )}
+      {teacher && b.payment && (b.payment.platformCreditHalalas ?? 0) > 0 && (
+        <div className="note sand">استرد المتعلّم مبلغ هذا الدرس بموجب ضمان الدرس الأول، وأضافت المنصة {sar(b.payment.platformCreditHalalas ?? 0)} إلى أرباحك تعويضاً. لا يُحسب هذا مخالفة عليك.</div>
+      )}
+
       {!teacher && b.status === "awaiting_payment" && (
         <div className="card">
           <h2>أكمل الدفع</h2>
@@ -188,6 +204,33 @@ function Body() {
         </>
       )}
     </>
+  );
+}
+
+const WHY: [string, string][] = [["not_a_good_fit", "لم يناسبني المعلّم"], ["teacher_unprepared", "لم يكن المعلّم مستعداً"], ["teaching_style", "أسلوب الشرح لا يناسبني"], ["technical", "مشكلة تقنية"], ["other", "سبب آخر"]];
+
+function Guarantee({ id, until, onDone }: { id: string; until?: string; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [why, setWhy] = useState("not_a_good_fit");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<unknown>(null);
+  async function claim() {
+    if (!confirm("استرداد كامل مبلغ هذا الدرس؟ لا يمكن التراجع.")) return;
+    setBusy(true); setErr(null);
+    try { await api("POST", `/bookings/${id}/guarantee`, { why }); onDone(); } catch (e) { setErr(e); } finally { setBusy(false); }
+  }
+  return (
+    <div className="card stack" style={{ borderColor: "var(--teal)" }}>
+      <h2>ضمان الدرس الأول</h2>
+      <p>هذا أول درس لك مع هذا المعلّم. إن لم يناسبك فاسترد مبلغه كاملاً بضغطة واحدة، دون أسئلة.{until ? ` متاح حتى ${dateTime(until)}.` : ""}</p>
+      {!open ? <div><button className="btn coral" onClick={() => setOpen(true)}>استرداد مبلغ الدرس</button></div> : (
+        <>
+          <Field label="ما السبب؟"><select value={why} onChange={(e) => setWhy(e.target.value)}>{WHY.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
+          <ErrorNote error={err} />
+          <div className="row"><button className="btn coral" disabled={busy} onClick={claim}>تأكيد الاسترداد</button><button className="btn ghost" onClick={() => setOpen(false)}>تراجع</button></div>
+        </>
+      )}
+    </div>
   );
 }
 

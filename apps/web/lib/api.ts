@@ -72,6 +72,7 @@ const MESSAGES: Record<string, string> = {
   strike_already_voided: "هذه المخالفة أُلغيت أصلاً.",
   cannot_decide_own_strike: "لا تبتّ في تظلّم على مخالفة أصدرتها أنت.",
   already_banned: "الحساب محظور أصلاً.",
+  guarantee_unavailable: "ضمان الدرس الأول غير متاح لهذا الدرس.",
   network: "تعذّر الاتصال بالخادم. تحقق من الاتصال وحاول مرة أخرى.",
   server_error: "حدث خطأ غير متوقع. حاول مرة أخرى.",
   invalid_input: "بعض البيانات غير صحيحة. راجع الحقول.",

@@ -107,10 +107,11 @@ interface CandidateRow {
 async function plan(db: Db, now: Date) {
   const c = await db.query<CandidateRow>(
     `SELECT p.id AS payment_id, b.teacher_id, p.captured_at,
-            (p.captured_halalas - p.refunded_halalas - p.commission_halalas) AS net,
+            (p.captured_halalas - p.refunded_halalas - p.commission_halalas + p.platform_credit_halalas) AS net,
             EXISTS (SELECT 1 FROM disputes x WHERE x.booking_id = p.booking_id AND x.outcome IS NULL) AS disputed
        FROM payments p JOIN bookings b ON b.id = p.booking_id
-      WHERE p.payout_id IS NULL AND p.status IN ('captured','partially_refunded') AND p.captured_at IS NOT NULL
+      WHERE p.payout_id IS NULL AND p.captured_at IS NOT NULL
+        AND (p.status IN ('captured','partially_refunded') OR (p.status = 'refunded' AND p.platform_credit_halalas > 0))
       ORDER BY p.captured_at`,
   );
   const ids = [...new Set(c.rows.map((r) => r.teacher_id))];

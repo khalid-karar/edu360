@@ -91,7 +91,8 @@ Business rules live in pure functions with no framework or database, so they are
 | 3. Web app | Arabic RTL learner, guardian, teacher and admin screens (including staff consoles and teacher application) | Done against the local sandbox; real card form and file upload wait on Moyasar and Oracle |
 | 4a. Notifications | In-app inbox with bell, reminders, SMS for urgent events | Done (SMS gateway is a mock until a provider is chosen) |
 | 4b. Suspension and appeals | Suspending a learner or guardian cancels their lessons; appeal against any strike decided by a second officer; banned users get an appeal-only session | Done |
-| 4c. Video and identity | LiveKit rooms with recording; Nafath integration (needs an integrator contract and credentials) | In parallel with 3 |
+| 4c. First-lesson guarantee | Full refund of a first lesson inside the dispute window; platform pays the teacher half of the normal net; per-learner and per-teacher caps | Done |
+| 4d. Video and identity | LiveKit rooms with recording; Nafath integration (needs an integrator contract and credentials) | In parallel with 3 |
 | 5. Pilot hardening | Penetration test, load test, backups restore drill, policies published | Before pilot |
 
 Integrations that need outside contracts (Nafath, Moyasar activation, SMS gateway) are built against interfaces with local fakes, so development does not wait on them.

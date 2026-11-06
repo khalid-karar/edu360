@@ -77,6 +77,7 @@ function Body() {
 
       {editable && (
         <>
+          <div className="note sand">سياسة المنصة: الدرس الأول لكل متعلّم معك مضمون. إن لم يناسبه استرد مبلغه كاملاً، وتعوّضك المنصة بنصف صافي ربحك من ذلك الدرس. لا يُحسب هذا مخالفة عليك.</div>
           <p className="muted small">رفع الملفات تجريبي حالياً: يُسجَّل اسم الملف فقط حتى يُربط التخزين.</p>
           <ProfileForm me={me} userId={user.id} onSaved={load} />
           <CategoriesForm me={me} cats={cats} onSaved={load} />

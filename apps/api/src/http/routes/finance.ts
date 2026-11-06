@@ -15,13 +15,13 @@ export const financeRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
 
   app.get("/admin/finance/disputes", { preHandler: pre }, async (req) => {
     const { status } = parse(z.object({ status: z.enum(["open", "decided"]).default("open") }), req.query);
-    const r = await db.query<{ id: string; booking_id: string; reason: string; created_at: Date; outcome: string | null; refund_halalas: number; captured_halalas: number }>(
-      `SELECT d.id, d.booking_id, d.reason, d.created_at, d.outcome, d.refund_halalas, p.captured_halalas
+    const r = await db.query<{ id: string; booking_id: string; reason: string; created_at: Date; outcome: string | null; refund_halalas: number; captured_halalas: number; kind: string }>(
+      `SELECT d.id, d.booking_id, d.reason, d.created_at, d.outcome, d.refund_halalas, p.captured_halalas, d.kind
          FROM disputes d JOIN payments p ON p.booking_id = d.booking_id
         WHERE (d.outcome IS NULL) = ($1 = 'open') ORDER BY d.created_at LIMIT 100`,
       [status],
     );
-    return { items: r.rows.map((x) => ({ id: x.id, bookingId: x.booking_id, reason: x.reason, openedAt: x.created_at, outcome: x.outcome, refundHalalas: x.refund_halalas, capturedHalalas: x.captured_halalas })) };
+    return { items: r.rows.map((x) => ({ id: x.id, bookingId: x.booking_id, reason: x.reason, openedAt: x.created_at, outcome: x.outcome, refundHalalas: x.refund_halalas, capturedHalalas: x.captured_halalas, kind: x.kind })) };
   });
 
   app.get("/admin/finance/disputes/:id", { preHandler: pre }, async (req) => {
@@ -88,7 +88,7 @@ export const financeRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
       )
     ).rows[0];
     if (!o) throw new HttpError(404, "not_found");
-    const pays = await db.query<{ booking_id: string; captured_halalas: number; refunded_halalas: number; commission_halalas: number }>("SELECT booking_id, captured_halalas, refunded_halalas, commission_halalas FROM payments WHERE payout_id = $1", [id]);
+    const pays = await db.query<{ booking_id: string; captured_halalas: number; refunded_halalas: number; commission_halalas: number; platform_credit_halalas: number }>("SELECT booking_id, captured_halalas, refunded_halalas, commission_halalas, platform_credit_halalas FROM payments WHERE payout_id = $1", [id]);
     await audit(db, { actorId: s.id, action: "finance.viewed_iban", targetType: "payout", targetId: id });
     return {
       id: o.id,
@@ -98,7 +98,7 @@ export const financeRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
       note: o.note,
       bankReference: o.bank_reference,
       teacher: { id: o.teacher_id, displayName: o.teacher_name, iban: o.iban, holderName: o.holder },
-      lines: pays.rows.map((p) => ({ bookingId: p.booking_id, capturedHalalas: p.captured_halalas, refundedHalalas: p.refunded_halalas, commissionHalalas: p.commission_halalas })),
+      lines: pays.rows.map((p) => ({ bookingId: p.booking_id, capturedHalalas: p.captured_halalas, refundedHalalas: p.refunded_halalas, commissionHalalas: p.commission_halalas, platformCreditHalalas: p.platform_credit_halalas })),
     };
   });
 

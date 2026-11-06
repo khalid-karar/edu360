@@ -233,7 +233,7 @@ describe("booking and payment life cycle", () => {
 
     // The learner sees what they paid, not the platform's cut.
     const lv = await h.call("GET", `/api/bookings/${b.body.bookingId}`, { token: l.token });
-    expect(lv.body.payment).toEqual({ status: "captured", capturedHalalas: PRICE });
+    expect(lv.body.payment).toEqual({ status: "captured", capturedHalalas: PRICE, refundedHalalas: 0 });
     // Another user sees nothing at all.
     const x = await verified("learner");
     expect((await h.call("GET", `/api/bookings/${b.body.bookingId}`, { token: x.token })).status).toBe(404);

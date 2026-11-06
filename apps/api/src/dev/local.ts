@@ -78,27 +78,33 @@ for (const t of teachers) {
   }
 }
 
-// A learner with two finished, paid lessons: one old enough to be paid out, one still inside the dispute window.
+// Finished, paid lessons for the finance and guarantee demos.
+async function seedLesson(learnerId: string, teacherMobile: string, quranCat: number, hoursAgo: number) {
+  const teacherId = (await db.query<{ id: string }>("SELECT id FROM users WHERE mobile = $1", [teacherMobile])).rows[0]!.id;
+  const startsAt = new Date(Date.now() - hoursAgo * 3_600_000);
+  const b = await db.query<{ id: string }>(
+    "INSERT INTO bookings (learner_id, payer_id, teacher_id, category_id, status, starts_at, duration_min, price_halalas) VALUES ($1,$1,$2,$3,'completed',$4,60,10000) RETURNING id",
+    [learnerId, teacherId, quranCat, startsAt],
+  );
+  const pay = payments.authorize(10000, { booking_id: b.rows[0]!.id });
+  await payments.capture(pay.id);
+  const capturedAt = new Date(startsAt.getTime() + 3_600_000);
+  await db.query(
+    `INSERT INTO payments (booking_id, psp_reference, amount_halalas, captured_halalas, commission_halalas, status, authorized_at, captured_at, payout_eligible_at, created_at)
+     VALUES ($1,$2,10000,10000,2000,'captured',$3,$4,$5,$3)`,
+    [b.rows[0]!.id, pay.id, startsAt, capturedAt, new Date(capturedAt.getTime() + 48 * 3_600_000)],
+  );
+}
 {
+  // Waleed: one old lesson (ready to pay out) and one inside the dispute window, both with Mohammed.
   const l = await db.query<{ id: string }>("INSERT INTO users (role, status, mobile, display_name) VALUES ('learner','active','+966500000301','وليد المطيري') RETURNING id");
-  const learnerId = l.rows[0]!.id;
-  await db.query("INSERT INTO identity_verifications (user_id, national_id_hash, full_name, gender, date_of_birth) VALUES ($1,$2,'وليد المطيري','male','1999-01-20')", [learnerId, randomBytes(16).toString("hex")]);
-  const teacherId = (await db.query<{ id: string }>("SELECT id FROM users WHERE mobile = '+966500000101'")).rows[0]!.id;
-  for (const hoursAgo of [5 * 24, 4]) {
-    const startsAt = new Date(Date.now() - hoursAgo * 3_600_000);
-    const b = await db.query<{ id: string }>(
-      "INSERT INTO bookings (learner_id, payer_id, teacher_id, category_id, status, starts_at, duration_min, price_halalas) VALUES ($1,$1,$2,$3,'completed',$4,60,10000) RETURNING id",
-      [learnerId, teacherId, catIds["quran"]!, startsAt],
-    );
-    const pay = payments.authorize(10000, { booking_id: b.rows[0]!.id });
-    await payments.capture(pay.id);
-    const capturedAt = new Date(startsAt.getTime() + 3_600_000);
-    await db.query(
-      `INSERT INTO payments (booking_id, psp_reference, amount_halalas, captured_halalas, commission_halalas, status, authorized_at, captured_at, payout_eligible_at, created_at)
-       VALUES ($1,$2,10000,10000,2000,'captured',$3,$4,$5,$3)`,
-      [b.rows[0]!.id, pay.id, startsAt, capturedAt, new Date(capturedAt.getTime() + 48 * 3_600_000)],
-    );
-  }
+  await db.query("INSERT INTO identity_verifications (user_id, national_id_hash, full_name, gender, date_of_birth) VALUES ($1,$2,'وليد المطيري','male','1999-01-20')", [l.rows[0]!.id, randomBytes(16).toString("hex")]);
+  await seedLesson(l.rows[0]!.id, "+966500000101", catIds["quran"]!, 5 * 24);
+  await seedLesson(l.rows[0]!.id, "+966500000101", catIds["quran"]!, 4);
+  // Hind: her first lesson with Noura finished 3 hours ago, so the first-lesson guarantee applies.
+  const h = await db.query<{ id: string }>("INSERT INTO users (role, status, mobile, display_name) VALUES ('learner','active','+966500000302','هند الزهراني') RETURNING id");
+  await db.query("INSERT INTO identity_verifications (user_id, national_id_hash, full_name, gender, date_of_birth) VALUES ($1,$2,'هند الزهراني','female','2001-05-11')", [h.rows[0]!.id, randomBytes(16).toString("hex")]);
+  await seedLesson(h.rows[0]!.id, "+966500000102", catIds["quran"]!, 3);
 }
 
 // A teacher application waiting for the vetting officer.

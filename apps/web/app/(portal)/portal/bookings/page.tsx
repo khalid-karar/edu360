@@ -17,7 +17,7 @@ export interface BookingView {
   teacher: { id: string; displayName: string };
   learner: { id: string; displayName: string; isChild: boolean };
   category: { id: number; nameAr: string };
-  payment: { status: string; capturedHalalas: number; commissionHalalas?: number; netHalalas?: number } | null;
+  payment: { status: string; capturedHalalas: number; refundedHalalas: number; commissionHalalas?: number; platformCreditHalalas?: number; netHalalas?: number } | null;
 }
 
 const UPCOMING = ["awaiting_payment", "requested", "confirmed"];

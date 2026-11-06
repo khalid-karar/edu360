@@ -161,6 +161,16 @@ A banned person can still sign in, but the session (`next: "appeal"`) only opens
 
 Safety officers: `GET /api/admin/safety/appeals?status=open|upheld|reversed`, `GET /api/admin/safety/appeals/:id` (audited), `POST /api/admin/safety/appeals/:id/decide` `{ outcome: "upheld" | "reversed", note (10+ chars) }`. The officer who issued the strike cannot decide it (`cannot_decide_own_strike`). `reversed` voids the strike: it stops counting toward the ladder (the next strike is a warning again) and, if no other live ban or suspension remains, the account (and a teacher's profile and payouts) is restored. Lessons already cancelled stay cancelled. The person is notified either way.
 
+## First-lesson guarantee (learner or guardian who booked)
+
+A learner's first completed lesson with a teacher can be refunded in full, no questions asked, while the 48h dispute window is open.
+
+- `GET /bookings/:id/guarantee` (participants) returns `{eligible, reason?, until?}`.
+- `POST /bookings/:id/guarantee {why}` (booker only; `why` is `not_a_good_fit|teacher_unprepared|teaching_style|technical|other`) refunds provider-first and returns `{refundedHalalas, booking}`. Error `guarantee_unavailable` carries `details.reason`.
+- Eligible when: booking completed, payment captured, not paid out, window open, no dispute on the booking, no earlier completed lesson with this teacher, learner used fewer than 3 guarantees (`GUARANTEE_MAX_PER_LEARNER`), teacher has fewer than 5 claims in 30 days (`GUARANTEE_TEACHER_MONTHLY_CAP`).
+- Accounting: commission is 0, and the platform pays the teacher half of the normal net (`platform_credit_halalas`). Net = captured - refunded - commission + credit. Payout runs and teacher earnings include these rows.
+- A claim writes a `disputes` row with `kind='guarantee'`, `outcome='full_refund'`, no decider. The finance disputes list exposes `kind`. The booking view payment includes `refundedHalalas` (and `platformCreditHalalas` for the teacher). Both sides are notified (`guarantee_claimed`) and an audit entry is written.
+
 ## Notifications (any signed-in user, including suspended or unverified)
 
 `GET /api/notifications?limit=&unread=` → `{ unread, items: [{ id, kind, title, body, link, read, createdAt }] }` (own only, newest first).
