@@ -517,6 +517,7 @@ h1 .l2 { font-size: clamp(2.8rem, 8.5vw, 5rem); color: #fff; font-weight: 700; l
 .founder blockquote p { font-size: clamp(1.3rem, 3vw, 1.7rem); line-height: 1.9; color: #fff; font-weight: 500; }
 .founder blockquote footer { display: flex; align-items: center; gap: 14px; margin-top: 28px; padding: 0; text-align: start; color: #c4cddc; }
 .founder blockquote strong { color: #fff; font-size: 1.1rem; }
+.founder blockquote.cofounder { margin-top: 56px; padding-top: 48px; border-top: 1px solid rgba(255, 255, 255, 0.18); }
 .mono {
   flex: none; width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center;
   background: var(--coral); color: var(--navy); font-size: 1.7rem; font-weight: 700;
