@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { LANG, Stars, type TeacherItem } from "../../../../components/teacher-card";
+import { Badges, LANG, Stars, type TeacherItem } from "../../../../components/teacher-card";
 import { Avatar, ErrorNote, Shell, Spinner } from "../../../../components/portal-ui";
 import { api } from "../../../../lib/api";
 import { dateTime, dayKey, dayLabel, sar, timeLabel } from "../../../../lib/format";
@@ -98,11 +98,14 @@ function Body() {
           </div>
         </div>
         {t.bio && <p>{t.bio}</p>}
+        <Badges list={t.badges} />
         <div className="row" style={{ gap: 6 }}>
           <span className="badge ok">هوية موثّقة عبر نفاذ</span>
           <span className="badge ok">شهادات مدقَّقة</span>
         </div>
       </div>
+
+      <Ask teacherId={t.teacherId} name={t.displayName} />
 
       {needsApproval && (
         <div className="card">
@@ -158,5 +161,31 @@ function Body() {
         </div>
       )}
     </>
+  );
+}
+
+/** A question before booking. The same filter as lesson chat applies: no phone numbers or links. */
+function Ask({ teacherId, name }: { teacherId: string; name: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [err, setErr] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+  async function send() {
+    setBusy(true); setErr(null);
+    try {
+      const r = await api<{ inquiryId: string }>("POST", `/teachers/${teacherId}/inquiry`, { body: text.trim() });
+      router.push(`/portal/inquiry?id=${r.inquiryId}`);
+    } catch (e) { setErr(e); } finally { setBusy(false); }
+  }
+  if (!open) return <div><button className="btn ghost" onClick={() => setOpen(true)}>اسأل {name} قبل الحجز</button></div>;
+  return (
+    <div className="card stack">
+      <h2>سؤال قبل الحجز</h2>
+      <textarea rows={3} maxLength={1000} value={text} onChange={(e) => setText(e.target.value)} placeholder="مثال: هل تدرّس الأطفال في سن السابعة؟" aria-label="سؤالك" />
+      <p className="muted small">لا تُرسل أرقام جوال أو روابط: التواصل يتم هنا لحمايتك. لن يرى المعلّم غير اسمك.</p>
+      <ErrorNote error={err} />
+      <div className="row"><button className="btn" disabled={busy || !text.trim()} onClick={send}>إرسال السؤال</button><button className="btn ghost" onClick={() => setOpen(false)}>إلغاء</button></div>
+    </div>
   );
 }

@@ -62,6 +62,9 @@
   "POST /api/guardian/children": "guardian",
   "POST /api/identity/nafath/start": "learner,guardian,teacher,pending",
   "GET /api/identity/nafath/status/:id": "learner,guardian,teacher,pending",
+  "GET /api/inquiries": "learner,guardian,teacher",
+  "GET /api/inquiries/:id/messages": "learner,guardian,teacher",
+  "POST /api/inquiries/:id/messages": "learner,guardian,teacher",
   "GET /api/notifications": "learner,guardian,teacher,vetting_officer,safety_officer,finance_officer,super_admin,banned,suspended,pending",
   "POST /api/notifications/read": "learner,guardian,teacher,vetting_officer,safety_officer,finance_officer,super_admin,banned,suspended,pending",
   "GET /api/notifications/unread-count": "learner,guardian,teacher,vetting_officer,safety_officer,finance_officer,super_admin,banned,suspended,pending",
@@ -80,6 +83,7 @@
   "POST /api/teacher/submit": "teacher",
   "GET /api/teachers": "learner,guardian",
   "GET /api/teachers/:id": "learner,guardian",
+  "POST /api/teachers/:id/inquiry": "learner,guardian",
   "GET /api/teachers/:id/slots": "learner,guardian",
   "POST /api/webhooks/moyasar": ""
 }

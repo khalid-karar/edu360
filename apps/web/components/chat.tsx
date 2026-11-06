@@ -6,7 +6,8 @@ import { timeLabel } from "../lib/format";
 interface Msg { id: string; mine: boolean; body: string; createdAt: string }
 
 /** Per-booking conversation. Polls every few seconds; contact details are refused by the server and explained here. */
-export function Chat({ bookingId, open }: { bookingId: string; open: boolean }) {
+export function Chat({ bookingId, open, base }: { bookingId?: string; open: boolean; base?: string }) {
+  const root = base ?? `/bookings/${bookingId}`;
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -16,7 +17,7 @@ export function Chat({ bookingId, open }: { bookingId: string; open: boolean }) 
 
   const pull = useCallback(async () => {
     try {
-      const r = await api<{ items: Msg[] }>("GET", `/bookings/${bookingId}/messages${last.current ? `?after=${encodeURIComponent(last.current)}` : ""}`);
+      const r = await api<{ items: Msg[] }>("GET", `${root}/messages${last.current ? `?after=${encodeURIComponent(last.current)}` : ""}`);
       if (r.items.length) {
         last.current = r.items[r.items.length - 1]!.createdAt;
         setMsgs((m) => {
@@ -27,7 +28,7 @@ export function Chat({ bookingId, open }: { bookingId: string; open: boolean }) 
     } catch {
       /* transient: the next poll retries */
     }
-  }, [bookingId]);
+  }, [root]);
 
   useEffect(() => {
     pull();
@@ -44,7 +45,7 @@ export function Chat({ bookingId, open }: { bookingId: string; open: boolean }) 
     setSending(true);
     setErr(null);
     try {
-      await api("POST", `/bookings/${bookingId}/messages`, { body });
+      await api("POST", `${root}/messages`, { body });
       setText("");
       await pull();
     } catch (e) {
@@ -73,7 +74,7 @@ export function Chat({ bookingId, open }: { bookingId: string; open: boolean }) 
           <button className="btn" disabled={sending || !text.trim()}>إرسال</button>
         </form>
       ) : (
-        <p className="muted small">المحادثة مغلقة لهذا الحجز.</p>
+        <p className="muted small">المحادثة مغلقة.</p>
       )}
       <p className="muted small">لحمايتك، لا تُرسل أرقام الجوال أو الروابط. التواصل والدفع داخل المنصة فقط.</p>
     </div>

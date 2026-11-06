@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { TeacherCard, LANG, type TeacherItem } from "../../../../components/teacher-card";
+import { BADGE, TeacherCard, LANG, type TeacherItem } from "../../../../components/teacher-card";
 import { ErrorNote, Field, Shell, Spinner } from "../../../../components/portal-ui";
 import { api } from "../../../../lib/api";
 import { useSession } from "../../../../lib/session";
@@ -20,7 +20,7 @@ function Body() {
   const { user } = useSession();
   const [cats, setCats] = useState<Cat[]>([]);
   const [children, setChildren] = useState<Child[]>([]);
-  const [f, setF] = useState({ categoryId: "", language: "", gender: "", maxPrice: "", childId: "" });
+  const [f, setF] = useState({ categoryId: "", language: "", gender: "", maxPrice: "", childId: "", badge: "", minRating: "", sort: "popular" });
   const [items, setItems] = useState<TeacherItem[] | null>(null);
   const [next, setNext] = useState<number | null>(null);
   const [err, setErr] = useState<unknown>(null);
@@ -37,6 +37,9 @@ function Body() {
     if (f.gender) q.set("gender", f.gender);
     if (f.maxPrice) q.set("maxPriceHalalas", String(Math.round(Number(f.maxPrice) * 100)));
     if (f.childId) q.set("childId", f.childId);
+    if (f.badge) q.set("badge", f.badge);
+    if (f.minRating) q.set("minRating", f.minRating);
+    if (f.sort !== "popular") q.set("sort", f.sort);
     q.set("offset", String(offset));
     return api<{ items: TeacherItem[]; nextOffset: number | null }>("GET", `/teachers?${q}`);
   }
@@ -88,6 +91,27 @@ function Body() {
           </Field>
           <Field label="أعلى سعر للساعة (ر.س)">
             <input inputMode="numeric" value={f.maxPrice} onChange={(e) => setF({ ...f, maxPrice: e.target.value.replace(/\D/g, "") })} placeholder="مثال: 100" />
+          </Field>
+          <Field label="الشارة">
+            <select value={f.badge} onChange={set("badge")}>
+              <option value="">الكل</option>
+              {Object.entries(BADGE).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
+          </Field>
+          <Field label="التقييم">
+            <select value={f.minRating} onChange={set("minRating")}>
+              <option value="">الكل</option>
+              <option value="4">4 فأكثر</option>
+              <option value="4.5">4.5 فأكثر</option>
+            </select>
+          </Field>
+          <Field label="الترتيب">
+            <select value={f.sort} onChange={set("sort")}>
+              <option value="popular">الأكثر دروساً</option>
+              <option value="rating">الأعلى تقييماً</option>
+              <option value="price_low">الأقل سعراً</option>
+              <option value="price_high">الأعلى سعراً</option>
+            </select>
           </Field>
         </div>
       </div>

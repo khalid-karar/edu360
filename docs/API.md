@@ -83,11 +83,21 @@ Every admin action and every identity, code-of-conduct, IBAN and submission even
 
 | Method and path | What |
 | --- | --- |
-| `GET /teachers?categoryId=&language=&gender=&maxPriceHalalas=&childId=&limit=&offset=` | Live teachers with categories, prices, reliability and `nextSlotAt`. With `childId` (guardian only) adults-only teachers and categories closed to minors are hidden and `forChild` shows `sameGender`, `approved`, `crossGenderApproved`. `nextOffset` is null on the last page. |
+| `GET /teachers?categoryId=&language=&gender=&maxPriceHalalas=&childId=&minRating=&badge=&sort=&limit=&offset=` | Live teachers with categories, prices, reliability and `nextSlotAt`. With `childId` (guardian only) adults-only teachers and categories closed to minors are hidden and `forChild` shows `sameGender`, `approved`, `crossGenderApproved`. `nextOffset` is null on the last page. |
 | `GET /teachers/:id?childId=` | Full public profile. |
 | `GET /teachers/:id/slots?limit=` | Open 15-minute-aligned start times inside windows, excluding live bookings. |
 
+`minRating` needs at least 3 reviews. `badge` is one of `founding`, `experienced`, `top_rated`, `reliable`, `fast_replier`. `sort` is `popular` (default), `rating`, `price_low`, `price_high`; filters/sorts other than the default look at up to 500 candidates. Teacher objects carry `badges`.
+
 No contact, identity or payout data is ever returned.
+
+## Questions before booking (roles `learner`, `guardian`, `teacher`)
+
+| Method and path | What |
+| --- | --- |
+| `POST /teachers/:id/inquiry` `{body}` | Payer opens (or continues) a thread with a live teacher. Same message filter as chat (`422 message_blocked`), max 3 unanswered messages (`wait_for_answer`), max 5 new threads a day (`too_many_inquiries`). |
+| `GET /inquiries` | Own threads with last message and unread flag. |
+| `GET /inquiries/:id/messages`, `POST /inquiries/:id/messages` | Read or reply. A teacher may reply only after the payer wrote (`not_asked`). Blocked messages are flagged for the safety console. |
 
 ## Bookings
 

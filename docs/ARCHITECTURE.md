@@ -96,6 +96,7 @@ Business rules live in pure functions with no framework or database, so they are
 | 5a. Lesson room | Room tickets, entry window, attendance log used as evidence for no-shows and disputes, in-room whiteboard | Built against a mock; real LiveKit not yet tried |
 | 5b. Recording and identity | Opt-in recording (mandatory for minors) via LiveKit egress; Nafath integration (needs an integrator contract and credentials) | Not started |
 | 5c. Self-audit | Access matrix and object-level access tests, security headers, load and race test on real PostgreSQL (see SECURITY-AUDIT.md) | Done |
+| 5d. Pre-booking questions and trust badges | Inquiry threads (reusing the chat filter and flags), badges (founding, experienced, top rated, reliable, fast replier), rating/badge filters and sorting | Done |
 | 6. Pilot hardening | Independent penetration test, backups restore drill, policies published | Before pilot |
 
 Integrations that need outside contracts (Nafath, Moyasar activation, SMS gateway) are built against interfaces with local fakes, so development does not wait on them.

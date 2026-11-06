@@ -2,7 +2,7 @@
 export type NoticeKind =
   | "booking_requested" | "booking_accepted" | "booking_declined" | "booking_cancelled" | "booking_expired_unpaid"
   | "booking_unanswered" | "lesson_completed" | "no_show" | "lesson_reminder" | "new_message"
-  | "vetting_decision" | "strike" | "dispute_opened" | "dispute_decided" | "payout_update" | "report_update" | "appeal_filed" | "appeal_decided" | "guarantee_claimed" | "deletion_requested";
+  | "vetting_decision" | "strike" | "dispute_opened" | "dispute_decided" | "payout_update" | "report_update" | "appeal_filed" | "appeal_decided" | "guarantee_claimed" | "deletion_requested" | "inquiry_message";
 
 export interface Notice {
   title: string;
@@ -48,6 +48,7 @@ export function render(kind: NoticeKind, v: NoticeVars = {}): Notice {
     case "appeal_filed": return t("تظلّم جديد", "وصل تظلّم من مستخدم على مخالفة. راجعه من قائمة التظلّمات.");
     case "appeal_decided": return t(v.decision === "reversed" ? "قُبل تظلّمك" : "رُفض تظلّمك", v.decision === "reversed" ? `ألغينا المخالفة وأعدنا حسابك إن كان موقوفاً.${v.note ? ` ${v.note}` : ""}` : `راجعنا تظلّمك وبقيت المخالفة.${v.note ? ` ${v.note}` : ""}`, true);
     case "deletion_requested": return t("طُلب حذف حسابك", `سيُحذف حسابك وبياناتك الشخصية في ${v.when ?? "موعد قريب"}. إن لم تكن أنت من طلب ذلك فادخل إلى حسابك وألغِ الطلب فوراً.`, true);
+    case "inquiry_message": return v.by === "teacher" ? t("ردّ المعلّم على سؤالك", `ردّ ${v.who ?? "المعلّم"} على سؤالك قبل الحجز.`) : t("سؤال جديد قبل الحجز", `${v.who ?? "ولي أمر"} يسأل عن دروسك. الرد السريع يرفع فرص الحجز.`);
     case "guarantee_claimed":
       return v.by === "teacher"
         ? t("استُخدم ضمان الدرس الأول", `استرد المتعلّم مبلغ درسه الأول معك. أضفنا ${v.amount ?? ""} إلى أرباحك تعويضاً من المنصة. هذا لا يُحسب مخالفة عليك.`)

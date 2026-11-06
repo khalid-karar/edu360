@@ -100,9 +100,9 @@ export const safetyRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     const m =
       f.target_type === "message"
         ? (
-            await db.query<{ id: string; booking_id: string; sender_id: string; body: string; blocked: boolean; block_reason: string | null; created_at: Date; sender_role: string; learner_is_minor: boolean }>(
-              `SELECT m.id, m.booking_id, m.sender_id, m.body, m.blocked, m.block_reason, m.created_at, su.role AS sender_role, (lu.role = 'minor') AS learner_is_minor
-                 FROM messages m JOIN users su ON su.id = m.sender_id JOIN bookings b ON b.id = m.booking_id JOIN users lu ON lu.id = b.learner_id
+            await db.query<{ id: string; booking_id: string; sender_id: string; body: string; blocked: boolean; block_reason: string | null; created_at: Date; sender_role: string; learner_is_minor: boolean; inquiry_id: string | null }>(
+              `SELECT m.id, m.booking_id, m.inquiry_id, m.sender_id, m.body, m.blocked, m.block_reason, m.created_at, su.role AS sender_role, COALESCE(lu.role = 'minor', false) AS learner_is_minor
+                 FROM messages m JOIN users su ON su.id = m.sender_id LEFT JOIN bookings b ON b.id = m.booking_id LEFT JOIN users lu ON lu.id = b.learner_id
                 WHERE m.id = $1`,
               [f.target_id],
             )
@@ -116,7 +116,7 @@ export const safetyRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
       source: f.source,
       status: f.status,
       createdAt: f.created_at,
-      message: m ? { id: m.id, bookingId: m.booking_id, senderId: m.sender_id, senderRole: m.sender_role, toChild: m.learner_is_minor, body: m.body, blocked: m.blocked, blockReason: m.block_reason, createdAt: m.created_at } : null,
+      message: m ? { id: m.id, bookingId: m.booking_id, inquiryId: m.inquiry_id, senderId: m.sender_id, senderRole: m.sender_role, toChild: m.learner_is_minor, body: m.body, blocked: m.blocked, blockReason: m.block_reason, createdAt: m.created_at } : null,
     };
   });
 

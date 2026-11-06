@@ -75,9 +75,11 @@ export async function exportAccount(db: Db, userId: string, now: Date) {
     ),
     payouts: await q("SELECT id, amount_halalas, status, created_at, paid_at, bank_reference FROM payouts WHERE teacher_id = $1 ORDER BY created_at"),
     messages: await qa(
-      `SELECT m.booking_id, m.body, m.blocked, m.created_at, su.display_name AS sender
-         FROM messages m JOIN bookings b ON b.id = m.booking_id JOIN users su ON su.id = m.sender_id
-        WHERE b.teacher_id = ANY($1::uuid[]) OR b.learner_id = ANY($1::uuid[]) OR b.payer_id = ANY($1::uuid[]) ORDER BY m.created_at`,
+      `SELECT m.booking_id, m.inquiry_id, m.body, m.blocked, m.created_at, su.display_name AS sender
+         FROM messages m JOIN users su ON su.id = m.sender_id
+         LEFT JOIN bookings b ON b.id = m.booking_id LEFT JOIN inquiries i ON i.id = m.inquiry_id
+        WHERE b.teacher_id = ANY($1::uuid[]) OR b.learner_id = ANY($1::uuid[]) OR b.payer_id = ANY($1::uuid[])
+           OR i.teacher_id = ANY($1::uuid[]) OR i.payer_id = ANY($1::uuid[]) ORDER BY m.created_at`,
     ),
     reviews: await qa("SELECT r.booking_id, r.rating, r.comment, r.created_at FROM reviews r JOIN bookings b ON b.id = r.booking_id WHERE b.payer_id = ANY($1::uuid[]) OR b.teacher_id = ANY($1::uuid[])"),
     reportsFiled: await q("SELECT booking_id, category, reason, status, created_at FROM reports WHERE reporter_id = $1 ORDER BY created_at"),

@@ -1,5 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { BADGES, badgesFor } from "../../domain/badges.js";
+import { teacherStats } from "../../services/teacherStats.js";
 import type { Db } from "../../db/db.js";
 import { openSlots, type Span } from "../../domain/availability.js";
 import { MAX_BOOKING_HORIZON_DAYS } from "../../domain/booking.js";
@@ -9,6 +11,10 @@ import { guard, me } from "../guard.js";
 
 const LANGS = ["ar", "en", "ur", "hi", "fr", "tl", "other"] as const;
 const Search = z.object({
+  /** Only teachers whose average rating is at least this (needs 3 or more reviews). */
+  minRating: z.coerce.number().min(1).max(5).optional(),
+  badge: z.enum(BADGES).optional(),
+  sort: z.enum(["popular", "rating", "price_low", "price_high"]).default("popular"),
   categoryId: z.coerce.number().int().positive().optional(),
   language: z.enum(LANGS).optional(),
   gender: z.enum(["female", "male"]).optional(),
@@ -82,6 +88,7 @@ async function describe(ctx: Ctx, ids: string[], opts: { full: boolean; guardian
        FROM reviews r JOIN bookings b ON b.id = r.booking_id WHERE b.teacher_id = ANY($1::uuid[]) GROUP BY b.teacher_id`,
     [ids],
   );
+  const stats = await teacherStats(db, ids);
   const byId = new Map(teachers.rows.map((t) => [t.user_id, t]));
   return ids.flatMap((id) => {
     const t = byId.get(id);
@@ -102,6 +109,7 @@ async function describe(ctx: Ctx, ids: string[], opts: { full: boolean; guardian
         completedSessions: t.completed_sessions,
         reliability: Math.round(Number(t.reliability_score) * 100) / 100,
         adultsOnly: t.adults_only,
+        badges: (() => { const st = stats.get(id); return st ? badgesFor(st) : []; })(),
         rating: (() => {
           const r = ratings.rows.find((x) => x.teacher_id === id);
           return { average: r ? Number(r.avg) : null, count: r?.n ?? 0 };
@@ -137,8 +145,10 @@ export const teacherDirectoryRoutes = (ctx: Ctx): FastifyPluginAsync => async (a
     if (q.childId && u.role !== "guardian") throw new HttpError(403, "forbidden");
     const child = q.childId ? await childOf(db, u.id, q.childId) : undefined;
 
-    const found = await db.query<{ user_id: string }>(
-      `SELECT t.user_id FROM teacher_profiles t
+    // Badge, rating and sort filters need numbers computed per teacher, so they take the slower path over up to 500 candidates.
+    const smart = q.minRating !== undefined || q.badge !== undefined || q.sort !== "popular";
+    const found = await db.query<{ user_id: string; min_price: number | null }>(
+      `SELECT t.user_id, (SELECT min(tc.price_halalas) FROM teacher_categories tc WHERE tc.teacher_id = t.user_id AND tc.approved AND ($1::int IS NULL OR tc.category_id = $1)) AS min_price FROM teacher_profiles t
          JOIN users u ON u.id = t.user_id
          LEFT JOIN identity_verifications i ON i.user_id = t.user_id
         WHERE ${LIVE}
@@ -152,10 +162,31 @@ export const teacherDirectoryRoutes = (ctx: Ctx): FastifyPluginAsync => async (a
           AND (NOT $5::boolean OR NOT t.adults_only)
         ORDER BY t.completed_sessions DESC, t.reliability_score DESC, t.user_id
         LIMIT $6 OFFSET $7`,
-      [q.categoryId ?? null, q.language ?? null, q.gender ?? null, q.maxPriceHalalas ?? null, Boolean(child), q.limit, q.offset],
+      [q.categoryId ?? null, q.language ?? null, q.gender ?? null, q.maxPriceHalalas ?? null, Boolean(child), smart ? 500 : q.limit, smart ? 0 : q.offset],
     );
-    const items = await describe(ctx, found.rows.map((r) => r.user_id), { full: false, ...(child ? { child, guardianId: u.id } : {}) });
-    return { items, nextOffset: found.rows.length === q.limit ? q.offset + q.limit : null };
+    const opts = { full: false, ...(child ? { child, guardianId: u.id } : {}) };
+    if (!smart) {
+      const items = await describe(ctx, found.rows.map((r) => r.user_id), opts);
+      return { items, nextOffset: found.rows.length === q.limit ? q.offset + q.limit : null };
+    }
+    const stats = await teacherStats(db, found.rows.map((r) => r.user_id));
+    let rows = found.rows.filter((r) => {
+      const st = stats.get(r.user_id);
+      if (!st) return false;
+      if (q.minRating !== undefined && (st.ratingAvg === null || st.ratingCount < 3 || st.ratingAvg < q.minRating)) return false;
+      return q.badge === undefined || badgesFor(st).includes(q.badge);
+    });
+    const by = {
+      rating: (r: { user_id: string }) => -(stats.get(r.user_id)?.ratingAvg ?? -1),
+      price_low: (r: { min_price: number | null }) => r.min_price ?? Infinity,
+      price_high: (r: { min_price: number | null }) => -(r.min_price ?? -1),
+    } as const;
+    if (q.sort !== "popular") {
+      const key = by[q.sort] as (r: { user_id: string; min_price: number | null }) => number;
+      rows = rows.map((r, i) => ({ r, i })).sort((a, b) => key(a.r) - key(b.r) || a.i - b.i).map((x) => x.r); // ties keep the popularity order
+    }
+    const page = rows.slice(q.offset, q.offset + q.limit);
+    return { items: await describe(ctx, page.map((r) => r.user_id), opts), nextOffset: rows.length > q.offset + q.limit ? q.offset + q.limit : null };
   });
 
   async function liveTeacher(id: string) {

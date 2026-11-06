@@ -90,6 +90,36 @@ test("a banned teacher appeals; the issuer cannot decide it; a second officer re
   await expect(page.locator("text=قُبل تظلّمك")).toBeVisible();
 });
 
+test("a learner asks a teacher a question before booking and the teacher answers", async ({ page, browser }) => {
+  await signIn(page, "+966500000301"); // Waleed
+  await page.waitForURL("**/portal/search");
+  await page.click("a.card:has-text('محمد القحطاني')");
+  await expect(page.locator("text=معلّم مؤسس").first()).toBeVisible(); // a badge on the profile
+  await page.click("button:has-text('اسأل')");
+  await page.fill("textarea[aria-label='سؤالك']", "هل تدرّس الأطفال في سن السابعة؟");
+  await page.click("button:has-text('إرسال السؤال')");
+  await page.waitForURL("**/portal/inquiry**");
+  await expect(page.locator(".msg.mine", { hasText: "سن السابعة" })).toBeVisible();
+
+  // a phone number is refused and explained
+  await page.fill("input[aria-label='رسالة']", "كلمني على 0555555555");
+  await page.click("button:has-text('إرسال')");
+  await expect(page.locator(".note.err")).toContainText("لا يمكن إرسال أرقام التواصل");
+
+  const teacher = await (await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "ar-SA" })).newPage();
+  await signIn(teacher, "+966500000101");
+  await teacher.locator("a:has-text('الأسئلة'):visible").first().click();
+  await teacher.click("a.card:has-text('وليد')");
+  await expect(teacher.locator(".msg", { hasText: "سن السابعة" })).toBeVisible();
+  await expect(teacher.locator("text=0555555555")).toHaveCount(0);
+  await teacher.fill("input[aria-label='رسالة']", "نعم، أدرّس من سن السادسة بأسلوب مبسّط.");
+  await teacher.click("button:has-text('إرسال')");
+  await expect(teacher.locator(".msg.mine", { hasText: "السادسة" })).toBeVisible();
+
+  await expect(page.locator(".msg:not(.mine)", { hasText: "السادسة" })).toBeVisible({ timeout: 20_000 }); // the learner's chat polls every 5 s
+  await expect(page.locator("a:has-text('اطّلع على المواعيد واحجز')")).toBeVisible();
+});
+
 test("pages load under the security headers without CSP violations or console errors", async ({ page }) => {
   const problems: string[] = [];
   page.on("console", (m) => m.type() === "error" && problems.push(m.text()));

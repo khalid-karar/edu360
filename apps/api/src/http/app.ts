@@ -18,6 +18,7 @@ import { safetyRoutes } from "./routes/safety.js";
 import { trustRoutes } from "./routes/trust.js";
 import { vettingRoutes } from "./routes/vetting.js";
 import { dataRightsRoutes } from "./routes/dataRights.js";
+import { inquiryRoutes } from "./routes/inquiries.js";
 import { notificationRoutes } from "./routes/notifications.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 
@@ -78,6 +79,7 @@ export function buildApp(ctx: Ctx): FastifyInstance {
   app.register(financeRoutes(ctx), { prefix: "/api" });
   app.register(notificationRoutes(ctx), { prefix: "/api" });
   app.register(dataRightsRoutes(ctx), { prefix: "/api" });
+  app.register(inquiryRoutes(ctx), { prefix: "/api" });
   app.register(devRoutes(ctx), { prefix: "/api" });
   return app;
 }
