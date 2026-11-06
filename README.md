@@ -62,3 +62,9 @@ cd apps/web && npm install && npm run build                                  # s
 
 The sandbox keeps everything in memory, fakes SMS, Nafath and card payments, and prints demo teacher and staff logins. The web app is under `/portal` (login, identity, search, booking, chat, children and approvals, teacher availability and earnings). Staff consoles live at `/portal/staff` (one per role: vetting, safety, finance, super admin; sign in with the staff phone, then the authenticator code printed at startup). The sandbox seeds a pending teacher application, a learner with two paid lessons (one inside the dispute window) and two finance officers, so the first-payout second-approver rule can be exercised. Teacher onboarding is at `/portal/apply` (profile, categories and prices, credentials, code of conduct, IBAN, submit); file upload is a placeholder that records only the file name until object storage is connected. Serve `apps/web/out` behind any static server that forwards `/api/*` to the API (Netlify: a `/api/*` proxy rule to the server).
 
+
+## Tests
+
+- API: `cd apps/api && npm test` (unit and integration on an in-memory PostgreSQL, no setup).
+- Browser: build the API and the web app, then `cd apps/web && npx playwright install chromium && npm run e2e`. It starts the local sandbox and a static server itself, signs in through the real pages (including staff with authenticator codes) and runs five end-to-end flows: sign-in and search, data export and deletion request, first-lesson guarantee, teacher vetting, and a ban appeal. Set `PW_CHROMIUM` to use an existing Chromium binary.
+- GitHub Actions (`.github/workflows/ci.yml`) runs all of the above on every push. It has not run on GitHub yet, so the first run may need small fixes.

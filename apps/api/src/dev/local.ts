@@ -138,6 +138,12 @@ for (const [role, phone, name] of staff) {
   await db.query("INSERT INTO staff_mfa (user_id, secret_enc) VALUES ($1,$2)", [u.rows[0]!.id, encrypt(config.mfaEncKey, secret.toString("hex"))]);
 }
 
+// Lets the browser tests sign staff in: they read the authenticator secrets from this file.
+if (process.env["DEV_SECRETS_FILE"]) {
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(process.env["DEV_SECRETS_FILE"], JSON.stringify(Object.fromEntries([...secrets].map(([phone, s]) => [phone, base32Encode(s)]))));
+}
+
 const app = buildApp(ctx);
 const sweep = setInterval(() => void expireStale(ctx).catch(() => {}), 60_000);
 sweep.unref();
