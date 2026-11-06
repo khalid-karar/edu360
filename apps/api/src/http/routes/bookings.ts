@@ -14,6 +14,7 @@ import { listMessages, postMessage } from "../../services/chat.js";
 import { claimGuarantee, guaranteeStatus } from "../../services/guarantee.js";
 import type { Ctx } from "../context.js";
 import { HttpError, parse, uuidParam } from "../errors.js";
+import { joinRoom, roomWindow } from "../../services/room.js";
 import { guard, me } from "../guard.js";
 
 const NewBooking = z
@@ -72,6 +73,7 @@ function view(r: ViewRow, viewerId: string) {
     durationMin: r.duration_min,
     priceHalalas: r.price_halalas,
     expiresAt: r.expires_at,
+    room: r.status === "confirmed" ? roomWindow(r.starts_at, r.duration_min) : null,
     cancelledBy: r.cancelled_by,
     teacher: { id: r.teacher_id, displayName: r.teacher_name },
     learner: { id: r.learner_id, displayName: r.learner_name, isChild: r.learner_role === "minor" },
@@ -159,6 +161,12 @@ export const bookingRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     await completeBooking(deps, u.id, idOf(req));
     return one(db, idOf(req), u.id);
   });
+  // Entry to the video room. Each call mints a fresh short-lived ticket; the first call per side is logged as attendance.
+  app.post("/bookings/:id/room", { preHandler: participant }, async (req) => {
+    const u = me(req);
+    return joinRoom({ db, video: ctx.video, now: ctx.now }, u, idOf(req));
+  });
+
   app.post("/bookings/:id/cancel", { preHandler: participant }, async (req) => {
     const u = me(req);
     await cancelBooking(deps, u, idOf(req));

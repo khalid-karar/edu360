@@ -22,6 +22,11 @@ const Env = z.object({
   OTP_KEY: hexKey.optional(),
   SESSION_HOURS: z.coerce.number().positive().default(24 * 30),
   STAFF_SESSION_HOURS: z.coerce.number().positive().default(8),
+  /** Video rooms. "livekit" needs the three LiveKit values below. */
+  VIDEO: z.enum(["mock", "livekit"]).default("mock"),
+  LIVEKIT_URL: z.string().min(1).optional(),
+  LIVEKIT_API_KEY: z.string().min(1).optional(),
+  LIVEKIT_API_SECRET: z.string().min(16).optional(),
   /** Allowed prefix for uploaded file keys; real storage issues keys under it. */
   UPLOADS_PREFIX: z.string().default("uploads/"),
 });
@@ -40,6 +45,7 @@ export interface Config {
   sessionHours: number;
   staffSessionHours: number;
   uploadsPrefix: string;
+  video?: { kind: "mock" } | { kind: "livekit"; url: string; apiKey: string; apiSecret: string };
   /** Mock mode only: return the one-time code in the response. Real SMS never echoes it. */
   echoOtp: boolean;
 }
@@ -51,8 +57,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (e.PAYMENTS === "moyasar" && (!e.MOYASAR_SECRET_KEY || !e.MOYASAR_WEBHOOK_SECRET)) {
     throw new Error("PAYMENTS=moyasar needs MOYASAR_SECRET_KEY and MOYASAR_WEBHOOK_SECRET");
   }
+  if (e.VIDEO === "livekit" && (!e.LIVEKIT_URL || !e.LIVEKIT_API_KEY || !e.LIVEKIT_API_SECRET)) {
+    throw new Error("VIDEO=livekit needs LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET");
+  }
   return {
     port: e.PORT,
+    video: e.VIDEO === "livekit" ? { kind: "livekit", url: e.LIVEKIT_URL!, apiKey: e.LIVEKIT_API_KEY!, apiSecret: e.LIVEKIT_API_SECRET! } : { kind: "mock" },
     payments: e.PAYMENTS,
     ...(e.MOYASAR_SECRET_KEY ? { moyasarSecretKey: e.MOYASAR_SECRET_KEY } : {}),
     ...(e.MOYASAR_WEBHOOK_SECRET ? { webhookSecret: e.MOYASAR_WEBHOOK_SECRET } : {}),

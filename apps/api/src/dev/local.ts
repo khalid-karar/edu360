@@ -12,6 +12,7 @@ import { pgliteDb } from "../db/pglite.js";
 import { buildApp } from "../http/app.js";
 import { MockPaymentProvider } from "../payments/mock.js";
 import { MockNafathProvider } from "../providers/nafath.js";
+import { MockVideo } from "../video/provider.js";
 import { MockSmsProvider } from "../providers/sms.js";
 import { expireStale } from "../services/bookings.js";
 import { encrypt } from "../security/crypto.js";
@@ -38,7 +39,7 @@ const db = pgliteDb(new PGlite());
 await migrate(db);
 
 const payments = new MockPaymentProvider();
-const ctx = { db, config, sms: new MockSmsProvider(), nafath: new MockNafathProvider(), payments, mockPayments: payments, now: () => new Date(), limits: { global: 100_000, auth: 100_000 } };
+const ctx = { db, config, sms: new MockSmsProvider(), nafath: new MockNafathProvider(), payments, video: new MockVideo(), mockPayments: payments, now: () => new Date(), limits: { global: 100_000, auth: 100_000 } };
 
 // ── demo data ──
 const cats = [

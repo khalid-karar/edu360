@@ -26,11 +26,11 @@ export const financeRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
 
   app.get("/admin/finance/disputes/:id", { preHandler: pre }, async (req) => {
     const d = (
-      await db.query<{ id: string; reason: string; outcome: string | null; note: string | null; created_at: Date; booking_id: string; status: string; starts_at: Date; price_halalas: number; teacher_name: string; payer_name: string; captured_halalas: number; commission_halalas: number; refunded_halalas: number; payout_id: string | null }>(
+      await db.query<{ id: string; reason: string; outcome: string | null; note: string | null; created_at: Date; booking_id: string; status: string; starts_at: Date; price_halalas: number; teacher_name: string; payer_name: string; captured_halalas: number; commission_halalas: number; refunded_halalas: number; payout_id: string | null; teacher_joined_at: Date | null; learner_joined_at: Date | null }>(
         `SELECT d.id, d.reason, d.outcome, d.note, d.created_at, b.id AS booking_id, b.status, b.starts_at, b.price_halalas,
                 tu.display_name AS teacher_name, pu.display_name AS payer_name,
-                p.captured_halalas, p.commission_halalas, p.refunded_halalas, p.payout_id
-           FROM disputes d JOIN bookings b ON b.id = d.booking_id JOIN payments p ON p.booking_id = b.id
+                p.captured_halalas, p.commission_halalas, p.refunded_halalas, p.payout_id, s.teacher_joined_at, s.learner_joined_at
+           FROM disputes d JOIN bookings b ON b.id = d.booking_id JOIN payments p ON p.booking_id = b.id LEFT JOIN sessions s ON s.booking_id = b.id
            JOIN users tu ON tu.id = b.teacher_id JOIN users pu ON pu.id = b.payer_id WHERE d.id = $1`,
         [idOf(req)],
       )
@@ -44,6 +44,7 @@ export const financeRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
       openedAt: d.created_at,
       booking: { id: d.booking_id, status: d.status, startsAt: d.starts_at, priceHalalas: d.price_halalas, teacher: d.teacher_name, payer: d.payer_name },
       payment: { capturedHalalas: d.captured_halalas, commissionHalalas: d.commission_halalas, refundedHalalas: d.refunded_halalas, paidOut: Boolean(d.payout_id) },
+      attendance: { teacherJoinedAt: d.teacher_joined_at, learnerJoinedAt: d.learner_joined_at },
     };
   });
 

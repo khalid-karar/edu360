@@ -6,6 +6,7 @@ import { pgliteDb } from "../../src/db/pglite.js";
 import { buildApp } from "../../src/http/app.js";
 import { MockPaymentProvider } from "../../src/payments/mock.js";
 import { MockNafathProvider } from "../../src/providers/nafath.js";
+import { MockVideo } from "../../src/video/provider.js";
 import { MockSmsProvider } from "../../src/providers/sms.js";
 import { encrypt } from "../../src/security/crypto.js";
 import { newTotpSecret, totpAt } from "../../src/security/totp.js";
@@ -47,7 +48,8 @@ export async function makeHarness() {
   const sms = new MockSmsProvider();
   const nafath = new MockNafathProvider(() => t);
   const payments = new MockPaymentProvider();
-  const ctx = { db, config, sms, nafath, payments, mockPayments: payments, now: clock.now, limits: { global: 100_000, auth: 100_000 } };
+  const video = new MockVideo();
+  const ctx = { db, config, sms, nafath, payments, video, mockPayments: payments, now: clock.now, limits: { global: 100_000, auth: 100_000 } };
   const app = buildApp(ctx);
   await app.ready();
 
@@ -110,7 +112,7 @@ export async function makeHarness() {
     return r.rows[0]!.id;
   }
 
-  return { db, app, ctx, call, clock, sms, nafath, payments, signup, verifyIdentity, staff, category };
+  return { db, app, ctx, video, call, clock, sms, nafath, payments, signup, verifyIdentity, staff, category };
 }
 
 /** A checksum-valid Saudi IBAN for tests. */

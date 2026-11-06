@@ -13,6 +13,7 @@ export interface BookingView {
   durationMin: number;
   priceHalalas: number;
   expiresAt: string | null;
+  room: { opensAt: string; closesAt: string } | null;
   cancelledBy: string | null;
   teacher: { id: string; displayName: string };
   learner: { id: string; displayName: string; isChild: boolean };

@@ -47,7 +47,7 @@ Staff accounts cannot be created through the API. Someone with server access cre
 npm run create-staff -- --phone +9665XXXXXXXX --name "Full Name" --role super_admin
 ```
 
-`PROVIDERS=mock` is the only mode for SMS and Nafath today, and `PAYMENTS=mock` (default) or `PAYMENTS=moyasar` (needs `MOYASAR_SECRET_KEY` and `MOYASAR_WEBHOOK_SECRET`) for payments: the fakes, and the one-time code is returned in the response. The server refuses to start with any other value.
+`PROVIDERS=mock` is the only mode for SMS and Nafath today, and `PAYMENTS=mock` (default) or `PAYMENTS=moyasar` (needs `MOYASAR_SECRET_KEY` and `MOYASAR_WEBHOOK_SECRET`) for payments: the fakes, and the one-time code is returned in the response. The server refuses to start with any other value. `VIDEO=mock` (default) or `VIDEO=livekit` (needs `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`) for lesson rooms; the LiveKit path has not been run against a real server yet.
 
 ## Next
 

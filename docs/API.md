@@ -171,6 +171,14 @@ A learner's first completed lesson with a teacher can be refunded in full, no qu
 - Accounting: commission is 0, and the platform pays the teacher half of the normal net (`platform_credit_halalas`). Net = captured - refunded - commission + credit. Payout runs and teacher earnings include these rows.
 - A claim writes a `disputes` row with `kind='guarantee'`, `outcome='full_refund'`, no decider. The finance disputes list exposes `kind`. The booking view payment includes `refundedHalalas` (and `platformCreditHalalas` for the teacher). Both sides are notified (`guarantee_claimed`) and an audit entry is written.
 
+## Lesson room (teacher or the paying side of a confirmed booking)
+
+- `POST /bookings/:id/room` returns `{url, token, room, as: "teacher"|"learner", forChild, closesAt}`. Open from 10 minutes before the start until 15 minutes after the end (`room_not_open_yet` with `details.opensAt`, `room_closed`); only confirmed bookings (`room_unavailable`). The booking view carries `room: {opensAt, closesAt}` while confirmed.
+- The ticket is a LiveKit JWT (HS256, signed with the API secret) limited to that one room: join, publish audio/video/data, subscribe. No admin or recording rights. Identity is `teacher:<id>` or `payer:<id>`; for a child the guardian enters as the learner side.
+- The first entry of each side sets `sessions.teacher_joined_at` / `learner_joined_at`. A no-show report against a side that entered is refused (`party_attended`). Finance dispute detail shows `attendance`.
+- Whiteboard: drawn on a canvas in the web room and sent as LiveKit data messages (topics `wb`, `wb-clear`); nothing is stored server side.
+- Config: `VIDEO=mock|livekit`.
+
 ## Data rights (any signed-in user, including suspended, banned and unverified)
 
 - `GET /account/export` returns the caller's own data as JSON (account, identity, teacher profile with IBAN, children, bookings, payments, payouts, messages, reviews, reports filed, strikes, appeals, notifications, recent sign-ins). Other parties appear by display name only; the national-ID hash, reporters' identities and staff notes are excluded. Limited to 3 per day (`export_limit`), each audited.

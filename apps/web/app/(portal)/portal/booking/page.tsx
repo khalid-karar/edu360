@@ -134,6 +134,12 @@ function Body() {
 
       <ErrorNote error={err} />
 
+      {b.status === "confirmed" && b.room && (
+        now >= new Date(b.room.opensAt).getTime() && now <= new Date(b.room.closesAt).getTime()
+          ? <Link href={`/portal/room?id=${id}`} className="btn">ادخل غرفة الدرس</Link>
+          : now < new Date(b.room.opensAt).getTime() ? <div className="note info">تفتح غرفة الدرس قبل الموعد بـ10 دقائق.</div> : null
+      )}
+
       {!teacher && b.status === "completed" && guar?.eligible && <Guarantee id={id} until={guar.until} onDone={() => { load(id); setGuar(null); }} />}
       {!teacher && b.payment && b.payment.refundedHalalas > 0 && b.payment.status === "refunded" && (
         <div className="note info">استُرد مبلغ هذا الدرس ({sar(b.payment.refundedHalalas)}). يصل إلى بطاقتك خلال أيام العمل المعتادة للبنك.</div>

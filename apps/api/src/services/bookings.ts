@@ -366,7 +366,7 @@ export async function cancelBooking(d: BookingDeps, actor: Actor, bookingId: str
 
 /**
  * The teacher reports the learner absent, or the payer reports the teacher absent. Allowed from 15 minutes
- * after the start until 24 hours later. Interim: it rests on one side's word until video attendance exists,
+ * after the start until 24 hours later. It is refused when the room log shows the accused side entered; otherwise it rests on one side's word,
  * so every report is audited and the other side can dispute it.
  */
 export async function reportNoShow(d: BookingDeps, actor: Actor, bookingId: string, who: "learner" | "teacher"): Promise<void> {
@@ -380,6 +380,9 @@ export async function reportNoShow(d: BookingDeps, actor: Actor, bookingId: stri
       if (now < new Date(b.starts_at.getTime() + NO_SHOW_GRACE_MINUTES * MIN)) throw new HttpError(409, "too_early");
       if (now > new Date(b.starts_at.getTime() + 24 * HOUR)) throw new HttpError(409, "too_late");
     }
+    // Video attendance beats anyone's word: a side that entered the room was not absent.
+    const att = (await tx.query<{ teacher_joined_at: Date | null; learner_joined_at: Date | null }>("SELECT teacher_joined_at, learner_joined_at FROM sessions WHERE booking_id = $1", [b.id])).rows[0];
+    if (att && (who === "teacher" ? att.teacher_joined_at : att.learner_joined_at)) throw new HttpError(409, "party_attended");
     await move(tx, b, who === "teacher" ? "teacher_no_show" : "learner_no_show");
     await applySettlement(tx, d, b, await paymentOf(tx, b.id), settleNoShow(who, b.price_halalas));
     if (who === "teacher") {

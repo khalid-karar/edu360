@@ -9,6 +9,7 @@ import { expireStale } from "../services/bookings.js";
 import { liftExpiredSuspensions } from "../services/trust.js";
 import { deliverSms, sendReminders } from "../services/notifications.js";
 import { processDeletions } from "../services/dataRights.js";
+import { LiveKitVideo, MockVideo } from "../video/provider.js";
 import { buildApp } from "./app.js";
 
 const config = loadConfig();
@@ -23,6 +24,7 @@ const ctx = {
   config,
   sms: new MockSmsProvider(),
   nafath: new MockNafathProvider(),
+  video: config.video?.kind === "livekit" ? new LiveKitVideo(config.video.url, config.video.apiKey, config.video.apiSecret) : new MockVideo(),
   payments: mockPayments ?? new MoyasarProvider(config.moyasarSecretKey!),
   now: () => new Date(),
   limits: { global: 120, auth: 10 },
