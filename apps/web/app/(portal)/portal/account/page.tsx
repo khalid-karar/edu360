@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ErrorNote, Field, Shell, Spinner } from "../../../../components/portal-ui";
-import { api } from "../../../../lib/api";
+import { ApiError, api } from "../../../../lib/api";
 import { dayLabel } from "../../../../lib/format";
 import { useSession } from "../../../../lib/session";
 
@@ -43,6 +43,7 @@ function Body() {
       <ErrorNote error={err} />
       {rec && rec.status === "suspended" && rec.suspendedUntil && <div className="note err">حسابك موقوف حتى {dayLabel(rec.suspendedUntil)}.</div>}
       {rec && rec.status === "banned" && <div className="note err">حسابك محظور. يمكنك تقديم تظلّم على المخالفة أدناه، وسيراجعه موظف آخر غير من أصدرها.</div>}
+      <DataRights status={user.status} staff={!isParty && user.role !== "minor"} />
       {rec && rec.strikes.length > 0 && (
         <div className="card stack">
           <h2>سجل المخالفات</h2>
@@ -73,6 +74,89 @@ function AppealForm({ strikeId, onDone }: { strikeId: string; onDone: () => void
       <Field label="اشرح لماذا تعترض" hint="20 حرفاً على الأقل. يمكنك التظلّم مرة واحدة لكل مخالفة وخلال 30 يوماً من صدورها."><textarea rows={4} maxLength={2000} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
       <ErrorNote error={err} />
       <div><button className="btn" disabled={busy || reason.trim().length < 20} onClick={send}>إرسال التظلّم</button></div>
+    </div>
+  );
+}
+
+const BLOCK: Record<string, string> = {
+  upcoming_bookings: "عندك دروس قادمة أو حجوزات معلّقة. أنهِها أو ألغِها أولاً.",
+  open_dispute: "هناك اعتراض مالي مفتوح لم يُفصل فيه.",
+  unsettled_money: "هناك مبالغ لم تُسوَّ بعد (أرباح لم تُحوَّل أو مبلغ محجوز).",
+  open_safety_case: "هناك بلاغ أمان مفتوح يخصّك.",
+};
+interface Del { requested: boolean; dueAt?: string; blockedReasons?: string[] }
+
+function DataRights({ status, staff }: { status: string; staff: boolean }) {
+  const [del, setDel] = useState<Del | null>(null);
+  const [err, setErr] = useState<unknown>(null);
+  const [blocked, setBlocked] = useState<string[]>([]);
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const load = () => { api<Del>("GET", "/account/deletion").then(setDel).catch(setErr); };
+  useEffect(load, []);
+
+  async function download() {
+    setBusy(true); setErr(null);
+    try {
+      const data = await api("GET", "/account/export");
+      const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+      const a = document.createElement("a");
+      a.href = url; a.download = "ilmak-my-data.json"; a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) { setErr(e); } finally { setBusy(false); }
+  }
+  async function request() {
+    setBusy(true); setErr(null); setBlocked([]);
+    try { await api("POST", "/account/deletion", { confirm: true }); setConfirming(false); load(); }
+    catch (e) {
+      if (e instanceof ApiError && e.code === "deletion_blocked") setBlocked((e.details as { reasons?: string[] } | undefined)?.reasons ?? []);
+      else setErr(e);
+      setConfirming(false);
+    } finally { setBusy(false); }
+  }
+  async function cancel() {
+    setBusy(true); setErr(null);
+    try { await api("DELETE", "/account/deletion"); load(); } catch (e) { setErr(e); } finally { setBusy(false); }
+  }
+  return (
+    <div className="card stack">
+      <h2>بياناتي وخصوصيتي</h2>
+      <p className="muted small">لك الحق في الحصول على نسخة من بياناتك الشخصية وفي طلب حذفها، وفق نظام حماية البيانات الشخصية.</p>
+      <div><button className="btn ghost" disabled={busy} onClick={download}>تنزيل نسخة من بياناتي</button></div>
+      <ErrorNote error={err} />
+      {!staff && del && !del.requested && (
+        <>
+          <hr style={{ border: 0, borderTop: "1px solid var(--line)", width: "100%" }} />
+          {blocked.length > 0 && (
+            <div className="note err">
+              <b>لا يمكن طلب الحذف الآن:</b>
+              <ul style={{ margin: "6px 0 0", paddingInlineStart: 18 }}>{blocked.map((b) => <li key={b}>{BLOCK[b] ?? b}</li>)}</ul>
+            </div>
+          )}
+          {!confirming ? (
+            <div><button className="btn ghost" onClick={() => setConfirming(true)}>طلب حذف حسابي</button></div>
+          ) : (
+            <div className="stack">
+              <div className="note">
+                سيُحذف اسمك وجوالك وبريدك وهويتك وبياناتك البنكية ومحتوى رسائلك بعد 14 يوماً، ولا يمكن التراجع بعدها.
+                نحتفظ بسجلات الدفع والتحويلات وسجل المخالفات والبلاغات لأن النظام والسلامة يتطلبان ذلك، دون ربطها باسمك.
+                {status === "banned" && " ولأن حسابك محظور نحتفظ أيضاً ببصمة هويتك لمنع فتح حساب جديد."}
+              </div>
+              <div className="row">
+                <button className="btn" style={{ background: "var(--coral)" }} disabled={busy} onClick={request}>تأكيد طلب الحذف</button>
+                <button className="btn ghost" onClick={() => setConfirming(false)}>تراجع</button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+      {del?.requested && (
+        <div className="note">
+          <p style={{ margin: 0 }}>طلب حذف حسابك مسجّل، وسيُنفَّذ بعد {del.dueAt ? dayLabel(del.dueAt) : "14 يوماً"}.</p>
+          {del.blockedReasons && del.blockedReasons.length > 0 && <p className="small" style={{ margin: "6px 0 0" }}>تأجّل التنفيذ لأن: {del.blockedReasons.map((b) => BLOCK[b] ?? b).join(" ")}</p>}
+          <div style={{ marginTop: 8 }}><button className="btn ghost" disabled={busy} onClick={cancel}>إلغاء طلب الحذف</button></div>
+        </div>
+      )}
     </div>
   );
 }

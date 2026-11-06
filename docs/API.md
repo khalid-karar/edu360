@@ -171,6 +171,14 @@ A learner's first completed lesson with a teacher can be refunded in full, no qu
 - Accounting: commission is 0, and the platform pays the teacher half of the normal net (`platform_credit_halalas`). Net = captured - refunded - commission + credit. Payout runs and teacher earnings include these rows.
 - A claim writes a `disputes` row with `kind='guarantee'`, `outcome='full_refund'`, no decider. The finance disputes list exposes `kind`. The booking view payment includes `refundedHalalas` (and `platformCreditHalalas` for the teacher). Both sides are notified (`guarantee_claimed`) and an audit entry is written.
 
+## Data rights (any signed-in user, including suspended, banned and unverified)
+
+- `GET /account/export` returns the caller's own data as JSON (account, identity, teacher profile with IBAN, children, bookings, payments, payouts, messages, reviews, reports filed, strikes, appeals, notifications, recent sign-ins). Other parties appear by display name only; the national-ID hash, reporters' identities and staff notes are excluded. Limited to 3 per day (`export_limit`), each audited.
+- `GET /account/deletion` returns `{requested, dueAt?, blockedReasons?}`.
+- `POST /account/deletion {confirm:true}` starts a 14-day cooling-off (`DELETION_COOLING_DAYS`) and sends an SMS-flagged notice. Refused with `deletion_blocked` (`details.reasons`) while there are upcoming bookings, an open dispute, unsettled money (teacher not yet paid out, payer card hold) or an open safety report. Staff accounts get `staff_cannot_self_delete`.
+- `DELETE /account/deletion` cancels during the cooling-off.
+- A sweep (every minute) erases due requests, or records why it postponed. Erasure blanks name, email, birth year, mobile (placeholder), identity, bank details, bio, availability, credential files, notifications and message bodies; delists teachers; erases a guardian's children too; revokes sessions. Kept: bookings, payments, payouts, disputes, strikes, appeals, reports, audit log, flagged messages (evidence), star ratings, and, for banned people, the hashed national ID. Audited as `account.erased`.
+
 ## Notifications (any signed-in user, including suspended or unverified)
 
 `GET /api/notifications?limit=&unread=` → `{ unread, items: [{ id, kind, title, body, link, read, createdAt }] }` (own only, newest first).

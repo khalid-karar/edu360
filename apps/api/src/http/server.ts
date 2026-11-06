@@ -8,6 +8,7 @@ import { MockSmsProvider } from "../providers/sms.js";
 import { expireStale } from "../services/bookings.js";
 import { liftExpiredSuspensions } from "../services/trust.js";
 import { deliverSms, sendReminders } from "../services/notifications.js";
+import { processDeletions } from "../services/dataRights.js";
 import { buildApp } from "./app.js";
 
 const config = loadConfig();
@@ -36,6 +37,7 @@ const sweep = setInterval(() => {
     (e) => console.error("expiry sweep failed", e),
   );
   liftExpiredSuspensions(ctx.db, ctx.now()).catch((e) => console.error("suspension sweep failed", e));
+  processDeletions(ctx.db, ctx.now()).then((r) => r.erased > 0 && console.log(`erased ${r.erased} accounts`), (e) => console.error("erasure sweep failed", e));
   sendReminders(ctx.db, ctx.now()).then(() => deliverSms(ctx.db, ctx.sms, ctx.now())).catch((e) => console.error("notification sweep failed", e));
 }, 60_000);
 sweep.unref();
