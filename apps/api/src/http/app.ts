@@ -21,10 +21,23 @@ import { dataRightsRoutes } from "./routes/dataRights.js";
 import { notificationRoutes } from "./routes/notifications.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 
+declare module "fastify" {
+  interface FastifyInstance {
+    /** Every route that was registered. The access-matrix test walks it so a new route cannot ship unguarded unnoticed. */
+    routeTable: { method: string; url: string }[];
+  }
+}
+
 /** Builds the API without opening a port, so tests can call it with app.inject(). Every route is under /api. */
 export function buildApp(ctx: Ctx): FastifyInstance {
   // Behind Caddy: the client address comes from X-Forwarded-For, and only the proxy can reach us (bound to 127.0.0.1).
   const app = Fastify({ trustProxy: true, bodyLimit: 16_384, logger: false });
+
+  const routeTable: { method: string; url: string }[] = [];
+  app.addHook("onRoute", (r) => {
+    for (const method of [r.method].flat()) if (method !== "HEAD" && method !== "OPTIONS") routeTable.push({ method, url: r.url });
+  });
+  app.decorate("routeTable", routeTable);
 
   app.addContentTypeParser("application/x-www-form-urlencoded", { parseAs: "string" }, (_req, body, done) => {
     done(null, Object.fromEntries(new URLSearchParams(body as string)));

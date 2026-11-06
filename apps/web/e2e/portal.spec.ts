@@ -89,3 +89,22 @@ test("a banned teacher appeals; the issuer cannot decide it; a second officer re
   await page.goto("/portal/notifications");
   await expect(page.locator("text=قُبل تظلّمك")).toBeVisible();
 });
+
+test("pages load under the security headers without CSP violations or console errors", async ({ page }) => {
+  const problems: string[] = [];
+  page.on("console", (m) => m.type() === "error" && problems.push(m.text()));
+  page.on("pageerror", (e) => problems.push(e.message));
+  const res = await page.goto("/");
+  expect(res?.headers()["content-security-policy"]).toContain("frame-ancestors 'none'");
+  expect(res?.headers()["x-frame-options"]).toBe("DENY");
+  await page.waitForLoadState("networkidle");
+  for (const path of ["/portal/login", "/privacy"]) {
+    await page.goto(path);
+    await page.waitForLoadState("networkidle");
+  }
+  await signIn(page, "+966500000301");
+  await page.waitForURL("**/portal/search");
+  await page.goto("/portal/account");
+  await expect(page.locator("text=بياناتي وخصوصيتي")).toBeVisible();
+  expect(problems).toEqual([]);
+});
