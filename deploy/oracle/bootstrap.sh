@@ -20,6 +20,11 @@ APP=/opt/ilmak
 ENVF=/etc/ilmak/api.env
 LOG=/var/log/ilmak-setup.log
 [ "$(id -u)" = 0 ] || { echo "run as root"; exit 1; }
+# One deploy at a time (the self-update timer may fire while a first run is still going).
+mkdir -p /var/lock
+exec 9>/var/lock/ilmak-deploy.lock
+flock -n 9 || { echo "another deploy is running; exiting"; exit 0; }
+if [ -f /run/ilmak-fail.pid ]; then kill "$(cat /run/ilmak-fail.pid)" 2>/dev/null || true; rm -f /run/ilmak-fail.pid; fi
 exec > >(tee -a "$LOG") 2>&1
 
 # Progress and errors are also published at https://<host>/_setup.txt while this runs, because the first run may happen with no
@@ -31,7 +36,18 @@ publish_log() {
     && mv "$BEACON.tmp" "$BEACON" && chmod a+r "$BEACON"; } 2>/dev/null || true
 }
 stage() { echo "== $*"; sleep 0.3; publish_log; }
-trap 'rc=$?; echo "!! FAILED at line $LINENO (exit $rc)"; sleep 1; publish_log' ERR
+# On a brand-new machine nothing serves port 80 yet, so a failure starts a tiny page with the masked log at http://<ip>/_setup.txt.
+fail_server() {
+  set +e
+  command -v python3 >/dev/null || return 0
+  ss -ltn 2>/dev/null | grep -q ':80 ' && return 0
+  mkdir -p /var/ilmak-fail
+  tail -n 300 "$LOG" | sed -E 's/[0-9a-fA-F]{32,}/[redacted]/g' >/var/ilmak-fail/_setup.txt
+  { firewall-cmd --add-service=http >/dev/null 2>&1 || iptables -I INPUT 4 -p tcp --dport 80 -j ACCEPT; } 2>/dev/null
+  nohup python3 -m http.server 80 --directory /var/ilmak-fail >/dev/null 2>&1 9>&- &
+  echo $! >/run/ilmak-fail.pid
+}
+trap 'rc=$?; echo "!! FAILED at line $LINENO (exit $rc)"; sleep 1; publish_log; fail_server' ERR
 stage "$(date -u +%FT%TZ) bootstrap branch=$BRANCH"
 
 case "$(uname -m)" in
@@ -53,6 +69,41 @@ if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split("."
 fi
 command -v npm >/dev/null || dnf -y install npm >/dev/null
 node -v
+
+stage "self-update (retries failed runs by itself)"
+# Compares the branch head with the commit last deployed successfully, so a failed run is retried when a fix is pushed.
+# Fetches the script by commit hash, so there is no stale-cache lag. Turn off before real users (AUTO_UPDATE=0).
+mkdir -p /var/lib/ilmak
+cat >/usr/local/bin/ilmak-update.new <<UPD
+#!/bin/bash
+set -e
+export HOME=/root
+SHA="\$(git ls-remote $REPO refs/heads/$BRANCH | cut -f1)"
+[ -n "\$SHA" ] || exit 1
+[ "\$SHA" = "\$(cat /var/lib/ilmak/deployed-sha 2>/dev/null)" ] && exit 0
+curl -fsSL "https://raw.githubusercontent.com/khalid-karar/edu360/\$SHA/deploy/oracle/bootstrap.sh" -o /tmp/ilmak-update.sh
+BRANCH=$BRANCH DOMAIN=${DOMAIN:-} AUTO_UPDATE=$AUTO_UPDATE bash /tmp/ilmak-update.sh >> /var/log/ilmak-update.log 2>&1
+UPD
+chmod +x /usr/local/bin/ilmak-update.new && mv -f /usr/local/bin/ilmak-update.new /usr/local/bin/ilmak-update
+cat >/etc/systemd/system/ilmak-update.service <<UNIT
+[Unit]
+Description=Ilmak self-update
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/ilmak-update
+TimeoutStartSec=1800
+UNIT
+cat >/etc/systemd/system/ilmak-update.timer <<UNIT
+[Unit]
+Description=Ilmak self-update timer
+[Timer]
+OnBootSec=10min
+OnUnitInactiveSec=5min
+[Install]
+WantedBy=timers.target
+UNIT
+systemctl daemon-reload
+if [ "$AUTO_UPDATE" = 1 ]; then systemctl enable --now ilmak-update.timer >/dev/null; else systemctl disable --now ilmak-update.timer >/dev/null 2>&1 || true; fi
 
 stage "postgresql 16"
 if ! command -v postgres >/dev/null && [ ! -x /usr/bin/postgres ]; then
@@ -258,41 +309,11 @@ Persistent=true
 WantedBy=timers.target
 UNIT
 
-# Optional self-update: pull the branch every 5 minutes and re-run this script. Turn off before real users (AUTO_UPDATE=0).
-cat >/usr/local/bin/ilmak-update <<UPD
-#!/bin/bash
-set -e
-export HOME=/root
-git config --global --add safe.directory $APP
-git -C $APP fetch -q --depth 1 origin $BRANCH
-[ "\$(git -C $APP rev-parse FETCH_HEAD)" = "\$(git -C $APP rev-parse HEAD)" ] && exit 0
-cp <(git -C $APP show FETCH_HEAD:deploy/oracle/bootstrap.sh) /tmp/ilmak-update.sh
-BRANCH=$BRANCH DOMAIN=${DOMAIN:-} AUTO_UPDATE=$AUTO_UPDATE bash /tmp/ilmak-update.sh >> /var/log/ilmak-update.log 2>&1
-UPD
-chmod +x /usr/local/bin/ilmak-update
-cat >/etc/systemd/system/ilmak-update.service <<UNIT
-[Unit]
-Description=Ilmak self-update
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/ilmak-update
-TimeoutStartSec=1800
-UNIT
-cat >/etc/systemd/system/ilmak-update.timer <<UNIT
-[Unit]
-Description=Ilmak self-update timer
-[Timer]
-OnBootSec=15min
-OnUnitInactiveSec=5min
-[Install]
-WantedBy=timers.target
-UNIT
-
 systemctl daemon-reload
 systemctl enable --now ilmak-backup.timer >/dev/null
-if [ "$AUTO_UPDATE" = 1 ]; then systemctl enable --now ilmak-update.timer >/dev/null; else systemctl disable --now ilmak-update.timer >/dev/null 2>&1 || true; fi
 systemctl enable --now ilmak-api >/dev/null
 systemctl restart ilmak-api
+if [ -f /run/ilmak-fail.pid ]; then kill "$(cat /run/ilmak-fail.pid)" 2>/dev/null || true; rm -f /run/ilmak-fail.pid; fi
 systemctl enable --now caddy >/dev/null
 systemctl reload-or-restart caddy
 
@@ -304,4 +325,5 @@ if [ "${FIRST_RUN:-}" = 1 ]; then
 fi
 trap - ERR
 rm -f "$BEACON"
+git -C "$APP" rev-parse HEAD >/var/lib/ilmak/deployed-sha
 echo "== DONE https://$HOST   (auto-update: $AUTO_UPDATE)"
