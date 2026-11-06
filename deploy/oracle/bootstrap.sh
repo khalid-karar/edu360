@@ -10,7 +10,8 @@
 #   AUTO_UPDATE  1 = every 5 minutes pull BRANCH and redeploy (default 1 while providers are mocks; set 0 before real users)
 #
 # Secrets are generated here, kept in /etc/ilmak/api.env (root:ilmak, mode 0640) and never printed or committed.
-set -euo pipefail
+set -Eeuo pipefail
+cd /tmp
 export HOME="${HOME:-/root}"
 BRANCH="${BRANCH:-main}"
 AUTO_UPDATE="${AUTO_UPDATE:-1}"
@@ -20,7 +21,18 @@ ENVF=/etc/ilmak/api.env
 LOG=/var/log/ilmak-setup.log
 [ "$(id -u)" = 0 ] || { echo "run as root"; exit 1; }
 exec > >(tee -a "$LOG") 2>&1
-echo "== $(date -u +%FT%TZ) bootstrap branch=$BRANCH"
+
+# Progress and errors are also published at https://<host>/_setup.txt while this runs, because the first run may happen with no
+# SSH access. Long hex strings are masked. The file is removed when the run succeeds.
+BEACON="$APP/apps/web/out/_setup.txt"
+publish_log() {
+  { mkdir -p "$(dirname "$BEACON")" \
+    && tail -n 300 "$LOG" | sed -E 's/[0-9a-fA-F]{32,}/[redacted]/g' >"$BEACON.tmp" \
+    && mv "$BEACON.tmp" "$BEACON" && chmod a+r "$BEACON"; } 2>/dev/null || true
+}
+stage() { echo "== $*"; sleep 0.3; publish_log; }
+trap 'rc=$?; echo "!! FAILED at line $LINENO (exit $rc)"; sleep 1; publish_log' ERR
+stage "$(date -u +%FT%TZ) bootstrap branch=$BRANCH"
 
 case "$(uname -m)" in
   aarch64) CADDY_ARCH=arm64 ;;
@@ -30,9 +42,9 @@ esac
 
 PUBIP="$(curl -fsS -m 10 https://ifconfig.me || curl -fsS -m 10 https://api.ipify.org)"
 HOST="${DOMAIN:-${PUBIP//./-}.sslip.io}"
-echo "== host: $HOST"
+stage "host: $HOST"
 
-echo "== packages"
+stage "packages"
 dnf -y install git tar curl openssl >/dev/null
 if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 20 ]; then
   dnf -y module reset nodejs >/dev/null || true
@@ -42,7 +54,7 @@ fi
 command -v npm >/dev/null || dnf -y install npm >/dev/null
 node -v
 
-echo "== postgresql 16"
+stage "postgresql 16"
 if ! command -v postgres >/dev/null && [ ! -x /usr/bin/postgres ]; then
   dnf -y module enable postgresql:16 >/dev/null
   dnf -y install postgresql-server >/dev/null
@@ -64,11 +76,11 @@ sed -i "s/^#\?listen_addresses.*/listen_addresses = '127.0.0.1'/" /var/lib/pgsql
 systemctl enable --now postgresql >/dev/null
 systemctl reload postgresql
 
-echo "== redis"
+stage "redis"
 command -v redis-server >/dev/null || dnf -y install redis >/dev/null
 RCONF=/etc/redis/redis.conf
 
-echo "== secrets"
+stage "secrets"
 mkdir -p /etc/ilmak
 id ilmak >/dev/null 2>&1 || useradd --system --home "$APP" --shell /sbin/nologin ilmak
 if [ ! -f "$ENVF" ]; then
@@ -98,14 +110,16 @@ chmod 0640 "$ENVF"
 PGPASS="$(sed -n 's#^DATABASE_URL=postgres://ilmak:\([0-9a-f]*\)@.*#\1#p' "$ENVF")"
 REDISPASS="$(sed -n 's#^REDIS_URL=redis://:\([0-9a-f]*\)@.*#\1#p' "$ENVF")"
 
-echo "== database role and schema"
+stage "database role and schema"
 if ! runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='ilmak'" | grep -q 1; then
-  runuser -u postgres -- psql -v ON_ERROR_STOP=1 -c "CREATE ROLE ilmak LOGIN PASSWORD '${PGPASS}'"
+  runuser -u postgres -- psql -v ON_ERROR_STOP=1 >/dev/null <<SQL
+CREATE ROLE ilmak LOGIN PASSWORD '${PGPASS}';
+SQL
 fi
 runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_database WHERE datname='ilmak'" | grep -q 1 \
   || runuser -u postgres -- createdb -O ilmak ilmak
 
-echo "== redis config"
+stage "redis config"
 if ! grep -q "ilmak-managed" "$RCONF"; then
   cat >>"$RCONF" <<RCFG
 
@@ -122,7 +136,7 @@ fi
 systemctl enable --now redis >/dev/null
 systemctl restart redis
 
-echo "== caddy"
+stage "caddy"
 if ! command -v caddy >/dev/null; then
   curl -fsSL "https://github.com/caddyserver/caddy/releases/download/v2.8.4/caddy_2.8.4_linux_${CADDY_ARCH}.tar.gz" | tar -xz -C /usr/local/bin caddy
   chmod +x /usr/local/bin/caddy
@@ -130,7 +144,7 @@ fi
 id caddy >/dev/null 2>&1 || useradd --system --home /var/lib/caddy --shell /sbin/nologin caddy
 mkdir -p /var/lib/caddy /etc/caddy && chown caddy:caddy /var/lib/caddy
 
-echo "== os firewall (80/443 only; also open them in the Oracle network rules)"
+stage "os firewall (80/443 only; also open them in the Oracle network rules)"
 if systemctl is-active --quiet firewalld; then
   firewall-cmd --permanent --add-service=http --add-service=https >/dev/null
   firewall-cmd --reload >/dev/null
@@ -139,7 +153,7 @@ else
   iptables -C INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null || iptables -I INPUT 4 -p tcp --dport 443 -j ACCEPT
 fi
 
-echo "== code"
+stage "code"
 git config --global --add safe.directory "$APP"
 if [ -d "$APP/.git" ]; then
   git -C "$APP" fetch --depth 1 origin "$BRANCH" && git -C "$APP" checkout -q -f FETCH_HEAD
@@ -155,7 +169,7 @@ chown ilmak:ilmak /var/backups/ilmak && chmod 700 /var/backups/ilmak
 # Caddy must be able to read the built site.
 chmod -R a+rX "$APP/apps/web/out"
 
-echo "== services"
+stage "services"
 cat >/etc/systemd/system/ilmak-api.service <<UNIT
 [Unit]
 Description=Ilmak API
@@ -282,10 +296,12 @@ systemctl restart ilmak-api
 systemctl enable --now caddy >/dev/null
 systemctl reload-or-restart caddy
 
-echo "== health"
+stage "health"
 for i in $(seq 1 20); do curl -fsS http://127.0.0.1:3000/api/health && break || sleep 2; done
 echo
 if [ "${FIRST_RUN:-}" = 1 ]; then
   echo "== FIRST RUN: back up $ENVF somewhere safe and private (it holds the keys that cannot be regenerated)."
 fi
+trap - ERR
+rm -f "$BEACON"
 echo "== DONE https://$HOST   (auto-update: $AUTO_UPDATE)"
