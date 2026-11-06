@@ -78,10 +78,48 @@ for (const t of teachers) {
   }
 }
 
+// A learner with two finished, paid lessons: one old enough to be paid out, one still inside the dispute window.
+{
+  const l = await db.query<{ id: string }>("INSERT INTO users (role, status, mobile, display_name) VALUES ('learner','active','+966500000301','وليد المطيري') RETURNING id");
+  const learnerId = l.rows[0]!.id;
+  await db.query("INSERT INTO identity_verifications (user_id, national_id_hash, full_name, gender, date_of_birth) VALUES ($1,$2,'وليد المطيري','male','1999-01-20')", [learnerId, randomBytes(16).toString("hex")]);
+  const teacherId = (await db.query<{ id: string }>("SELECT id FROM users WHERE mobile = '+966500000101'")).rows[0]!.id;
+  for (const hoursAgo of [5 * 24, 4]) {
+    const startsAt = new Date(Date.now() - hoursAgo * 3_600_000);
+    const b = await db.query<{ id: string }>(
+      "INSERT INTO bookings (learner_id, payer_id, teacher_id, category_id, status, starts_at, duration_min, price_halalas) VALUES ($1,$1,$2,$3,'completed',$4,60,10000) RETURNING id",
+      [learnerId, teacherId, catIds["quran"]!, startsAt],
+    );
+    const pay = payments.authorize(10000, { booking_id: b.rows[0]!.id });
+    await payments.capture(pay.id);
+    const capturedAt = new Date(startsAt.getTime() + 3_600_000);
+    await db.query(
+      `INSERT INTO payments (booking_id, psp_reference, amount_halalas, captured_halalas, commission_halalas, status, authorized_at, captured_at, payout_eligible_at, created_at)
+       VALUES ($1,$2,10000,10000,2000,'captured',$3,$4,$5,$3)`,
+      [b.rows[0]!.id, pay.id, startsAt, capturedAt, new Date(capturedAt.getTime() + 48 * 3_600_000)],
+    );
+  }
+}
+
+// A teacher application waiting for the vetting officer.
+{
+  const u = await db.query<{ id: string }>("INSERT INTO users (role, status, mobile, display_name) VALUES ('teacher','active','+966500000105','سارة الحربي') RETURNING id");
+  const id = u.rows[0]!.id;
+  await db.query("INSERT INTO identity_verifications (user_id, national_id_hash, full_name, gender, date_of_birth) VALUES ($1,$2,'سارة الحربي','female','1993-09-02')", [id, randomBytes(16).toString("hex")]);
+  await db.query(
+    `INSERT INTO teacher_profiles (user_id, status, bio, languages, iban, iban_holder_name, freelance_document_no, code_of_conduct_version, submitted_at)
+     VALUES ($1,'submitted','معلمة رياضيات للمرحلة المتوسطة، خبرة خمس سنوات في التدريس الخصوصي.',$2,'SA0380000000608010167520','سارة الحربي','FL-300400','1.0',now() - interval '2 days')`,
+    [id, ["ar"]],
+  );
+  await db.query("INSERT INTO teacher_categories (teacher_id, category_id, price_halalas, approved) VALUES ($1,$2,6000,false)", [id, catIds["math"]!]);
+  await db.query("INSERT INTO credentials (teacher_id, category_id, kind, file_url) VALUES ($1,$2,'degree','uploads/demo-degree.pdf')", [id, catIds["math"]!]);
+}
+
 const staff = [
   ["vetting_officer", "+966500000201", "موظف التدقيق"],
   ["safety_officer", "+966500000202", "موظف الأمان"],
   ["finance_officer", "+966500000203", "موظف المالية"],
+  ["finance_officer", "+966500000205", "موظف المالية الثاني"],
   ["super_admin", "+966500000204", "مدير النظام"],
 ] as const;
 const secrets = new Map<string, Buffer>();

@@ -103,3 +103,14 @@
 .kpis { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 .kpi { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; }
 .kpi b { display: block; font-size: 1.35rem; color: var(--ink); } .kpi span { color: var(--muted); font-size: .86rem; }
+
+/* staff consoles */
+.row.wrap { flex-wrap: wrap; }
+button.card.click { text-align: start; cursor: pointer; font: inherit; color: inherit; width: 100%; }
+button.card.click:hover { border-color: var(--teal); }
+.msgs { display: flex; flex-direction: column; gap: 6px; max-height: 340px; overflow: auto; }
+.msg { background: var(--mist); border-radius: 12px; padding: 8px 12px; }
+.msg.blocked { background: #fdf0ed; border: 1px solid #efc5bd; }
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl th, .tbl td { text-align: start; padding: 8px 6px; border-bottom: 1px solid var(--line); font-size: .92rem; vertical-align: top; }
+.pt-main > .btn { align-self: flex-start; }

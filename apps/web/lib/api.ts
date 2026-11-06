@@ -42,6 +42,19 @@ export async function api<T = any>(method: "GET" | "POST" | "PUT" | "PATCH" | "D
 }
 
 const MESSAGES: Record<string, string> = {
+  score_too_low: "المجموع أقل من حد القبول (16 من 20).",
+  reason_required: "اكتب السبب.",
+  no_accepted_credential: "لا يمكن الاعتماد بلا مستند مقبول واحد على الأقل.",
+  wrong_status: "حالة الطلب لا تسمح بهذا الإجراء.",
+  not_under_review: "الطلب ليس قيد المراجعة.",
+  not_assigned_to_you: "هذا البلاغ مُسند لموظف آخر.",
+  already_paid_out: "المبلغ حُوّل للمعلّم مسبقاً، لا يمكن استرداده من هنا.",
+  already_decided: "سبق البتّ في هذا الاعتراض.",
+  bad_refund_amount: "مبلغ الاسترداد غير صحيح.",
+  payment_state_conflict: "حالة الدفع لدى المزوّد لا تسمح بهذا الإجراء.",
+  second_approver_required: "أول تحويل لمعلّم يعتمده موظف غير الذي أنشأ الدفعة.",
+  slug_taken: "هذا المعرّف مستخدم.",
+  bad_price_band: "أقل سعر يجب ألا يتجاوز أعلى سعر.",
   network: "تعذّر الاتصال بالخادم. تحقق من الاتصال وحاول مرة أخرى.",
   server_error: "حدث خطأ غير متوقع. حاول مرة أخرى.",
   invalid_input: "بعض البيانات غير صحيحة. راجع الحقول.",
