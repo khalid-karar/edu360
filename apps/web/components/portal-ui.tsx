@@ -28,7 +28,7 @@ interface NavItem { href: string; label: string }
 function navFor(u: User): NavItem[] {
   if (u.role === "learner") return [{ href: "/portal/search", label: "ابحث عن معلّم" }, { href: "/portal/bookings", label: "حجوزاتي" }, { href: "/portal/account", label: "حسابي" }];
   if (u.role === "guardian") return [{ href: "/portal/search", label: "ابحث عن معلّم" }, { href: "/portal/bookings", label: "الحجوزات" }, { href: "/portal/children", label: "الأبناء" }, { href: "/portal/account", label: "حسابي" }];
-  if (u.role === "teacher") return [{ href: "/portal/bookings", label: "الحجوزات" }, { href: "/portal/availability", label: "أوقاتي" }, { href: "/portal/earnings", label: "أرباحي" }, { href: "/portal/account", label: "حسابي" }];
+  if (u.role === "teacher") return [{ href: "/portal/bookings", label: "الحجوزات" }, { href: "/portal/availability", label: "أوقاتي" }, { href: "/portal/earnings", label: "أرباحي" }, { href: "/portal/apply", label: "ملفي" }, { href: "/portal/account", label: "حسابي" }];
   return [{ href: "/portal/staff", label: "لوحة الموظفين" }, { href: "/portal/account", label: "حسابي" }];
 }
 
