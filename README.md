@@ -2,7 +2,7 @@
 
 An Arabic-first marketplace where verified home-based teachers deliver paid live lessons to learners, with the money held until the lesson happens.
 
-**Status:** phase 1 (domain core) and phase 2a (API foundation) and phase 2b (child accounts, availability, search, bookings with the payment hold, Moyasar webhook, chat) done. Reports, strikes, disputes, payouts and refunds are next. The public site is a coming-soon page with a waitlist.
+**Status:** phase 1 (domain core) and phase 2a (API foundation) phase 2b (child accounts, availability, search, bookings with the payment hold, Moyasar webhook, chat) and phase 2c (reports, strikes, disputes, refunds, payout runs, safety and finance queues) done. The web app is next. The public site is a coming-soon page with a waitlist.
 
 ## What is here
 
@@ -51,4 +51,4 @@ npm run create-staff -- --phone +9665XXXXXXXX --name "Full Name" --role super_ad
 
 ## Next
 
-Phase 2c: reports, strikes, disputes, payout runs, refunds, admin queues. Before any real money: verify the payment flow against the Moyasar sandbox (manual capture and partial capture). See the phase table in `docs/ARCHITECTURE.md`.
+Next: deploy the test server, verify the payment flow against the Moyasar sandbox (manual and partial capture, refunds), then the web app. See the phase table in `docs/ARCHITECTURE.md`.

@@ -382,3 +382,33 @@ export async function expireStale(d: BookingDeps): Promise<{ cancelled: number; 
   }
   return out;
 }
+
+/**
+ * Used when a teacher is suspended or banned: every lesson that has not happened yet is cancelled by the
+ * system and the learner's hold is released, so nobody is charged for a lesson that will not take place.
+ * Each booking is its own transaction; one provider failure does not stop the rest.
+ */
+export async function cancelUpcomingForTeacher(d: BookingDeps, teacherId: string): Promise<{ cancelled: number; failed: number }> {
+  const now = d.now();
+  const out = { cancelled: 0, failed: 0 };
+  const rows = await d.db.query<{ id: string }>(
+    "SELECT id FROM bookings WHERE teacher_id = $1 AND status IN ('awaiting_payment','requested','confirmed') AND starts_at > $2",
+    [teacherId, now],
+  );
+  for (const row of rows.rows) {
+    try {
+      await d.db.tx(async (tx) => {
+        const b = await lockBooking(tx, row.id);
+        if (b.status !== "awaiting_payment" && b.status !== "requested" && b.status !== "confirmed") return;
+        await move(tx, b, "cancel", { cancelledBy: "system" });
+        await applySettlement(tx, d, b, await paymentOf(tx, b.id), settleDeclined());
+        await audit(tx, { actorId: null, action: "booking.cancelled_teacher_suspended", targetType: "booking", targetId: b.id });
+      });
+      out.cancelled++;
+    } catch (e) {
+      out.failed++;
+      console.error("cancel for suspended teacher failed", row.id, e);
+    }
+  }
+  return out;
+}

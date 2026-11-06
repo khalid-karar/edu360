@@ -12,6 +12,9 @@ import { identityRoutes } from "./routes/identity.js";
 import { miscRoutes } from "./routes/misc.js";
 import { teacherDirectoryRoutes } from "./routes/teachers.js";
 import { teacherRoutes } from "./routes/teacher.js";
+import { financeRoutes } from "./routes/finance.js";
+import { safetyRoutes } from "./routes/safety.js";
+import { trustRoutes } from "./routes/trust.js";
 import { vettingRoutes } from "./routes/vetting.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 
@@ -54,5 +57,8 @@ export function buildApp(ctx: Ctx): FastifyInstance {
   app.register(teacherDirectoryRoutes(ctx), { prefix: "/api" });
   app.register(bookingRoutes(ctx), { prefix: "/api" });
   app.register(webhookRoutes(ctx), { prefix: "/api" });
+  app.register(trustRoutes(ctx), { prefix: "/api" });
+  app.register(safetyRoutes(ctx), { prefix: "/api" });
+  app.register(financeRoutes(ctx), { prefix: "/api" });
   return app;
 }

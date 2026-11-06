@@ -115,3 +115,37 @@ Unpaid holds lapse after 15 minutes. Requests the teacher never answers are decl
 ## Moyasar webhook
 
 `POST /api/webhooks/moyasar` with the shared `secret_token` in the body (`503` when `MOYASAR_WEBHOOK_SECRET` is not set, `401` for a wrong token, `400` for an unknown or malformed event). Nothing in the body is trusted: the payment is fetched from Moyasar and checked the same way as `/bookings/:id/payment`. The webhook and the client may both report the same payment. Other events only bring our payment record in line with Moyasar.
+
+## Trust: reports, disputes, reviews, own record (learner, guardian, teacher)
+
+| Method and path | What |
+| --- | --- |
+| `POST /reports` | `{bookingId, category: conduct \| safety \| no_show \| payment \| other, reason}` (10 to 1000 chars). The reported person is the other party of that booking. One open report per booking, 5 per day. |
+| `GET /reports/mine` | Status only. |
+| `POST /bookings/:id/dispute` | Payer only, `{reason}`, within 48 hours of the charge, completed or learner-no-show bookings. Stops the payout until finance decides. |
+| `GET /bookings/:id/dispute` | Either side: `open` or `decided`, outcome and refund amount. |
+| `POST /bookings/:id/review` | Payer only, `{rating 1-5, comment?}`, once, within 30 days, completed lessons. The comment goes through the chat filter. Teacher profiles show `rating {average, count}`. |
+| `GET /account/strikes` | Own strikes and suspension, also while suspended. |
+| `GET /teacher/earnings` | Held in the dispute window, available for the next run, in a payout, paid, whether payouts are frozen, and recent payouts. Works while suspended. |
+
+## Safety (role `safety_officer` only)
+
+| Method and path | What |
+| --- | --- |
+| `GET /admin/safety/queue` | Open reports (safety category first, then oldest) and open rule flags (highest severity first). |
+| `GET /admin/safety/reports/:id` | Report, the last 50 messages of the booking including blocked ones, prior strikes. Reading is audited. |
+| `POST /admin/safety/reports/:id/claim`, `/resolve` | `resolve` takes `{outcome: resolved \| dismissed, note}` and only the officer who claimed it can resolve. |
+| `GET /admin/safety/flags/:id`, `POST .../review` | The flagged message with sender role and whether the lesson is a child's. `review` takes `{outcome: confirmed \| dismissed, note}`. |
+| `POST /admin/safety/users/:id/strike` | `{reason, zeroTolerance?, reportId?}`. Applies the ladder from strikes in the last 12 months: warning, 14-day suspension, ban. Zero tolerance is an instant ban. A suspended or banned teacher leaves search, payouts freeze, and every upcoming lesson is cancelled with the hold released. Suspensions end by themselves after 14 days; bans do not. Staff and children cannot be struck. |
+| `GET /admin/safety/users/:id/strikes` | History. |
+
+## Finance (role `finance_officer` only)
+
+| Method and path | What |
+| --- | --- |
+| `GET /admin/finance/disputes?status=open\|decided`, `GET .../:id` | Dispute with booking and payment figures. |
+| `POST /admin/finance/disputes/:id/decide` | `{outcome: full_refund \| partial_refund \| release_to_teacher, refundHalalas? (partial only), note}`. The provider refunds first and the call is safe to retry. The teacher's commission is recomputed on what was kept. Refused with `already_paid_out` once the money has left. |
+| `GET /admin/finance/payout-runs/preview` | What a run would pay and why other payments are skipped. |
+| `POST /admin/finance/payout-runs` | Creates one payout per teacher for payments past the 48-hour window. Skips disputed payments, frozen teachers, and a new teacher's first 14 days. A teacher's first payout is `pending` and needs a different finance officer to approve it; later ones are approved by the run. Runs never overlap. |
+| `GET /admin/finance/payouts?status=`, `GET .../:id` | The detail shows the full IBAN and holder name; each read is audited. |
+| `POST /admin/finance/payouts/:id/approve`, `/hold`, `/mark-paid`, `/fail` | `mark-paid` takes the bank reference (transfers are made outside the system for now). `fail` releases the payments for the next run. |

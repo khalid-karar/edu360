@@ -77,6 +77,11 @@ async function describe(ctx: Ctx, ids: string[], opts: { full: boolean; guardian
       )
     : { rows: [] as { teacher_id: string; cross_gender_ok: boolean }[] };
 
+  const ratings = await db.query<{ teacher_id: string; avg: string; n: number }>(
+    `SELECT b.teacher_id, avg(r.rating)::numeric(3,2) AS avg, count(*)::int AS n
+       FROM reviews r JOIN bookings b ON b.id = r.booking_id WHERE b.teacher_id = ANY($1::uuid[]) GROUP BY b.teacher_id`,
+    [ids],
+  );
   const byId = new Map(teachers.rows.map((t) => [t.user_id, t]));
   return ids.flatMap((id) => {
     const t = byId.get(id);
@@ -97,6 +102,10 @@ async function describe(ctx: Ctx, ids: string[], opts: { full: boolean; guardian
         completedSessions: t.completed_sessions,
         reliability: Math.round(Number(t.reliability_score) * 100) / 100,
         adultsOnly: t.adults_only,
+        rating: (() => {
+          const r = ratings.rows.find((x) => x.teacher_id === id);
+          return { average: r ? Number(r.avg) : null, count: r?.n ?? 0 };
+        })(),
         categories: cats.rows
           .filter((c) => c.teacher_id === id && (!opts.child || c.allows_minors))
           .map((c) => ({ categoryId: c.category_id, nameAr: c.name_ar, priceHalalas: c.price_halalas })),
