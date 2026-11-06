@@ -179,7 +179,7 @@ export default function Home() {
         </p>
       </section>
 
-      <section className="founder" aria-label="كلمة المؤسس">
+      <section className="founder" aria-label="كلمة المؤسسين">
         <div className="sadu" aria-hidden="true" />
         <div className="founder-in">
           <span className="watermark" aria-hidden="true">ع</span>
@@ -195,6 +195,21 @@ export default function Home() {
                 <strong>طلال الزامل</strong>
                 <br />
                 مؤسس عِلمك، الرياض
+              </span>
+            </footer>
+          </blockquote>
+          <blockquote className="cofounder">
+            <p>
+              الأهل يسلّمون أولادهم لمعلّم في بيتهم، والمعلّم يسلّم وقته لعائلة ما يعرفها.
+              هذي ثقة كبيرة، فما نتركها للحظ: هوية موثّقة، ومؤهلات مراجَعة، والمبلغ محفوظ حتى يتم الدرس.
+              هذا اللي نبنيه، وهذا اللي نحاسب أنفسنا عليه.
+            </p>
+            <footer>
+              <span className="mono" aria-hidden="true">خ</span>
+              <span>
+                <strong>خالد عبد الرحمن</strong>
+                <br />
+                الشريك المؤسس والرئيس التنفيذي
               </span>
             </footer>
           </blockquote>
