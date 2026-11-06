@@ -3,6 +3,7 @@ import type { Config } from "../../src/config.js";
 import type { Db } from "../../src/db/db.js";
 import { migrate } from "../../src/db/migrate.js";
 import { buildApp } from "../../src/http/app.js";
+import { MockPaymentProvider } from "../../src/payments/mock.js";
 import { MockNafathProvider } from "../../src/providers/nafath.js";
 import { MockSmsProvider } from "../../src/providers/sms.js";
 import { encrypt } from "../../src/security/crypto.js";
@@ -32,6 +33,8 @@ export const config: Config = {
   port: 0,
   databaseUrl: "unused",
   providers: "mock",
+  payments: "mock",
+  webhookSecret: "whsec_test_secret",
   waitlistFile: "/tmp/ilmak-test-waitlist.jsonl",
   idHashKey: Buffer.alloc(32, 1),
   mfaEncKey: Buffer.alloc(32, 2),
@@ -62,10 +65,12 @@ export async function makeHarness() {
   };
   const sms = new MockSmsProvider();
   const nafath = new MockNafathProvider(() => t);
-  const app = buildApp({ db, config, sms, nafath, now: clock.now, limits: { global: 100_000, auth: 100_000 } });
+  const payments = new MockPaymentProvider();
+  const ctx = { db, config, sms, nafath, payments, mockPayments: payments, now: clock.now, limits: { global: 100_000, auth: 100_000 } };
+  const app = buildApp(ctx);
   await app.ready();
 
-  async function call(method: "GET" | "POST" | "PUT" | "PATCH", url: string, o: { token?: string; body?: unknown } = {}): Promise<Res> {
+  async function call(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", url: string, o: { token?: string; body?: unknown } = {}): Promise<Res> {
     const res = await app.inject({
       method,
       url,
@@ -124,7 +129,7 @@ export async function makeHarness() {
     return r.rows[0]!.id;
   }
 
-  return { db, app, call, clock, sms, nafath, signup, verifyIdentity, staff, category };
+  return { db, app, ctx, call, clock, sms, nafath, payments, signup, verifyIdentity, staff, category };
 }
 
 /** A checksum-valid Saudi IBAN for tests. */

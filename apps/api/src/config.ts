@@ -6,7 +6,13 @@ const hexKey = z.string().regex(/^[0-9a-fA-F]{64}$/, "must be 64 hex characters 
 const Env = z.object({
   PORT: z.coerce.number().int().default(3000),
   DATABASE_URL: z.string().min(1),
+  /** SMS and Nafath. Only "mock" exists until their contracts are signed. */
   PROVIDERS: z.string().default("mock"),
+  /** Card payments. "moyasar" needs both Moyasar values below; check it against their sandbox first. */
+  PAYMENTS: z.enum(["mock", "moyasar"]).default("mock"),
+  MOYASAR_SECRET_KEY: z.string().min(1).optional(),
+  /** Shared secret Moyasar puts in webhook payloads. Without it the webhook endpoint answers 503. */
+  MOYASAR_WEBHOOK_SECRET: z.string().min(8).optional(),
   WAITLIST_FILE: z.string().default("./data/waitlist.jsonl"),
   /** Keyed hash for national IDs. Must stay stable forever: changing it breaks "one account per ID". */
   ID_HASH_KEY: hexKey,
@@ -24,6 +30,9 @@ export interface Config {
   port: number;
   databaseUrl: string;
   providers: "mock";
+  payments: "mock" | "moyasar";
+  moyasarSecretKey?: string;
+  webhookSecret?: string;
   waitlistFile: string;
   idHashKey: Buffer;
   mfaEncKey: Buffer;
@@ -39,8 +48,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const e = Env.parse(env);
   // Real providers are not wired yet. Refuse to start rather than silently run mocks by mistake.
   if (e.PROVIDERS !== "mock") throw new Error(`PROVIDERS=${e.PROVIDERS} is not implemented yet; use PROVIDERS=mock`);
+  if (e.PAYMENTS === "moyasar" && (!e.MOYASAR_SECRET_KEY || !e.MOYASAR_WEBHOOK_SECRET)) {
+    throw new Error("PAYMENTS=moyasar needs MOYASAR_SECRET_KEY and MOYASAR_WEBHOOK_SECRET");
+  }
   return {
     port: e.PORT,
+    payments: e.PAYMENTS,
+    ...(e.MOYASAR_SECRET_KEY ? { moyasarSecretKey: e.MOYASAR_SECRET_KEY } : {}),
+    ...(e.MOYASAR_WEBHOOK_SECRET ? { webhookSecret: e.MOYASAR_WEBHOOK_SECRET } : {}),
     databaseUrl: e.DATABASE_URL,
     providers: "mock",
     waitlistFile: e.WAITLIST_FILE,

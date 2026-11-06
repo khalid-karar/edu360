@@ -2,7 +2,7 @@
 
 An Arabic-first marketplace where verified home-based teachers deliver paid live lessons to learners, with the money held until the lesson happens.
 
-**Status:** phase 1 (domain core) and phase 2a (API foundation: login, identity, teacher onboarding, vetting) done. Bookings, payments endpoints, chat and the trust queues are next. The public site is a coming-soon page with a waitlist.
+**Status:** phase 1 (domain core) and phase 2a (API foundation) and phase 2b (child accounts, availability, search, bookings with the payment hold, Moyasar webhook, chat) done. Reports, strikes, disputes, payouts and refunds are next. The public site is a coming-soon page with a waitlist.
 
 ## What is here
 
@@ -47,8 +47,8 @@ Staff accounts cannot be created through the API. Someone with server access cre
 npm run create-staff -- --phone +9665XXXXXXXX --name "Full Name" --role super_admin
 ```
 
-`PROVIDERS=mock` is the only mode today: SMS, Nafath and payments are local fakes, and the one-time code is returned in the response. The server refuses to start with any other value.
+`PROVIDERS=mock` is the only mode for SMS and Nafath today, and `PAYMENTS=mock` (default) or `PAYMENTS=moyasar` (needs `MOYASAR_SECRET_KEY` and `MOYASAR_WEBHOOK_SECRET`) for payments: the fakes, and the one-time code is returned in the response. The server refuses to start with any other value.
 
 ## Next
 
-Phase 2b: child accounts and guardian approvals, availability, search, bookings with the payment hold, the Moyasar webhook, chat. See the phase table in `docs/ARCHITECTURE.md`.
+Phase 2c: reports, strikes, disputes, payout runs, refunds, admin queues. Before any real money: verify the payment flow against the Moyasar sandbox (manual capture and partial capture). See the phase table in `docs/ARCHITECTURE.md`.

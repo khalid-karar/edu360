@@ -188,7 +188,7 @@ describe("rate limits", () => {
     const { config } = await import("./helpers/harness.js");
     const { MockSmsProvider } = await import("../src/providers/sms.js");
     const { MockNafathProvider } = await import("../src/providers/nafath.js");
-    const app = buildApp({ db: h.db, config, sms: new MockSmsProvider(), nafath: new MockNafathProvider(), now: () => new Date(), limits: { global: 5, auth: 3 } });
+    const app = buildApp({ ...h.ctx, config, sms: new MockSmsProvider(), nafath: new MockNafathProvider(), now: () => new Date(), limits: { global: 5, auth: 3 } });
     const codes: number[] = [];
     for (let i = 0; i < 5; i++) {
       const r = await app.inject({ method: "POST", url: "/api/auth/otp/request", payload: { phone: nextPhone() } });

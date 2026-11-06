@@ -6,6 +6,9 @@ export const AUTH_WINDOW_DAYS = 14;
 export const MAX_BOOKING_HORIZON_DAYS = 10;
 export const MIN_LEAD_MINUTES = 120;
 export const REQUEST_EXPIRY_HOURS = 12; // teacher must accept within this time
+export const PAYMENT_HOLD_MINUTES = 15; // slot is held this long while the learner pays
+export const LESSON_MINUTES = 60;
+export const NO_SHOW_GRACE_MINUTES = 15; // a no-show can be reported this long after the start
 export const FREE_CANCELLATION_HOURS = 24;
 /** Teacher keeps this share when a learner cancels late or does not show. */
 export const LATE_CANCEL_TEACHER_BPS = 5000;
@@ -55,6 +58,7 @@ export function captureDeadline(authorizedAt: Date): Date {
 }
 
 export type BookingStatus =
+  | "awaiting_payment"
   | "requested"
   | "confirmed"
   | "declined"
@@ -64,6 +68,7 @@ export type BookingStatus =
   | "no_show_learner";
 
 export type BookingEvent =
+  | "payment_authorized"
   | "accept"
   | "decline"
   | "cancel"
@@ -72,6 +77,8 @@ export type BookingEvent =
   | "learner_no_show";
 
 const TRANSITIONS: Record<BookingStatus, Partial<Record<BookingEvent, BookingStatus>>> = {
+  // The slot is held while the learner pays; abandoning or timing out is a plain cancel (nothing was held on the card yet).
+  awaiting_payment: { payment_authorized: "requested", cancel: "cancelled" },
   requested: { accept: "confirmed", decline: "declined", cancel: "cancelled" },
   confirmed: {
     cancel: "cancelled",

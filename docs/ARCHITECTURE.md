@@ -86,8 +86,8 @@ Business rules live in pure functions with no framework or database, so they are
 | --- | --- | --- |
 | 1. Domain core | Commission, booking policy and state machine, payment adapter and verification, chat filter, payout rules, strike policy, all tested | Done |
 | 2a. HTTP API: foundation | PostgreSQL and migrations, login by one-time code, sessions, staff MFA, Nafath identity, teacher onboarding, vetting, categories, audit log | Done |
-| 2b. HTTP API: marketplace | Child accounts and guardian approvals, availability, search, bookings with authorize-then-capture, Moyasar webhook, chat with filter | Next |
-| 2c. HTTP API: trust and money | Reports, strikes, disputes, payout runs, refunds, admin queues for safety and finance | After 2b |
+| 2b. HTTP API: marketplace | Child accounts and guardian approvals, availability, search, bookings with authorize-then-capture, Moyasar webhook, chat with filter | Done (not yet verified against the Moyasar sandbox) |
+| 2c. HTTP API: trust and money | Reports, strikes, disputes, payout runs, refunds, admin queues for safety and finance | Next |
 | 3. Web app | Arabic RTL learner, guardian, teacher and admin screens | After phase 2 |
 | 4. Video and identity | LiveKit rooms with recording; Nafath integration (needs an integrator contract and credentials) | In parallel with 3 |
 | 5. Pilot hardening | Penetration test, load test, backups restore drill, policies published | Before pilot |

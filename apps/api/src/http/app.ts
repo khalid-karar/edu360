@@ -5,10 +5,15 @@ import { HttpError } from "./errors.js";
 import { rateLimit } from "./rate-limit.js";
 import { adminRoutes } from "./routes/admin.js";
 import { authRoutes } from "./routes/auth.js";
+import { availabilityRoutes } from "./routes/availability.js";
+import { bookingRoutes } from "./routes/bookings.js";
+import { guardianRoutes } from "./routes/guardian.js";
 import { identityRoutes } from "./routes/identity.js";
 import { miscRoutes } from "./routes/misc.js";
+import { teacherDirectoryRoutes } from "./routes/teachers.js";
 import { teacherRoutes } from "./routes/teacher.js";
 import { vettingRoutes } from "./routes/vetting.js";
+import { webhookRoutes } from "./routes/webhooks.js";
 
 /** Builds the API without opening a port, so tests can call it with app.inject(). Every route is under /api. */
 export function buildApp(ctx: Ctx): FastifyInstance {
@@ -44,5 +49,10 @@ export function buildApp(ctx: Ctx): FastifyInstance {
   app.register(teacherRoutes(ctx), { prefix: "/api" });
   app.register(vettingRoutes(ctx), { prefix: "/api" });
   app.register(adminRoutes(ctx), { prefix: "/api" });
+  app.register(guardianRoutes(ctx), { prefix: "/api" });
+  app.register(availabilityRoutes(ctx), { prefix: "/api" });
+  app.register(teacherDirectoryRoutes(ctx), { prefix: "/api" });
+  app.register(bookingRoutes(ctx), { prefix: "/api" });
+  app.register(webhookRoutes(ctx), { prefix: "/api" });
   return app;
 }
