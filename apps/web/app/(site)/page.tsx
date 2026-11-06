@@ -1,6 +1,6 @@
-import Calculator from "../components/Calculator";
-import HowTabs from "../components/HowTabs";
-import RoleSelect from "../components/RoleSelect";
+import Calculator from "../../components/Calculator";
+import HowTabs from "../../components/HowTabs";
+import RoleSelect from "../../components/RoleSelect";
 
 const skills = [
   "القرآن والتجويد",

@@ -1,4 +1,4 @@
-import ShareButtons from "../../components/ShareButtons";
+import ShareButtons from "../../../components/ShareButtons";
 
 export default function Thanks() {
   return (

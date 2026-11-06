@@ -52,3 +52,13 @@ npm run create-staff -- --phone +9665XXXXXXXX --name "Full Name" --role super_ad
 ## Next
 
 Next: deploy the test server, verify the payment flow against the Moyasar sandbox (manual and partial capture, refunds), then the web app. See the phase table in `docs/ARCHITECTURE.md`.
+
+## Try it locally (no database, no accounts)
+
+```
+cd apps/api && npm install && npm run build && node dist/dev/local.js      # API with demo teachers on port 3000
+cd apps/web && npm install && npm run build                                  # static site in out/
+```
+
+The sandbox keeps everything in memory, fakes SMS, Nafath and card payments, and prints demo teacher and staff logins. The web app is under `/portal` (login, identity, search, booking, chat, children and approvals, teacher availability and earnings). Staff screens (vetting, safety, finance) are the next batch. Serve `apps/web/out` behind any static server that forwards `/api/*` to the API (Netlify: a `/api/*` proxy rule to the server).
+

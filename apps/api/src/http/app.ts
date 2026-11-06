@@ -12,6 +12,7 @@ import { identityRoutes } from "./routes/identity.js";
 import { miscRoutes } from "./routes/misc.js";
 import { teacherDirectoryRoutes } from "./routes/teachers.js";
 import { teacherRoutes } from "./routes/teacher.js";
+import { devRoutes } from "./routes/dev.js";
 import { financeRoutes } from "./routes/finance.js";
 import { safetyRoutes } from "./routes/safety.js";
 import { trustRoutes } from "./routes/trust.js";
@@ -60,5 +61,6 @@ export function buildApp(ctx: Ctx): FastifyInstance {
   app.register(trustRoutes(ctx), { prefix: "/api" });
   app.register(safetyRoutes(ctx), { prefix: "/api" });
   app.register(financeRoutes(ctx), { prefix: "/api" });
+  app.register(devRoutes(ctx), { prefix: "/api" });
   return app;
 }

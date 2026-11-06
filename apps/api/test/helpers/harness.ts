@@ -2,32 +2,13 @@ import { PGlite } from "@electric-sql/pglite";
 import type { Config } from "../../src/config.js";
 import type { Db } from "../../src/db/db.js";
 import { migrate } from "../../src/db/migrate.js";
+import { pgliteDb } from "../../src/db/pglite.js";
 import { buildApp } from "../../src/http/app.js";
 import { MockPaymentProvider } from "../../src/payments/mock.js";
 import { MockNafathProvider } from "../../src/providers/nafath.js";
 import { MockSmsProvider } from "../../src/providers/sms.js";
 import { encrypt } from "../../src/security/crypto.js";
 import { newTotpSecret, totpAt } from "../../src/security/totp.js";
-
-/** A real PostgreSQL (PGlite, in-process) behind the same Db interface the app uses in production. */
-function pgliteDb(pg: PGlite): Db {
-  type Q = Pick<PGlite, "query" | "exec">;
-  const wrap = (q: Q, inTx: boolean): Db => ({
-    async query<T>(sql: string, params: readonly unknown[] = []) {
-      const r = await q.query<T>(sql, params as unknown[]);
-      return { rows: r.rows, rowCount: r.rows.length > 0 ? r.rows.length : (r.affectedRows ?? 0) };
-    },
-    async exec(sql) {
-      await q.exec(sql);
-    },
-    async tx(fn) {
-      if (inTx) return fn(this);
-      return pg.transaction((t) => fn(wrap(t, true)));
-    },
-    end: () => pg.close(),
-  });
-  return wrap(pg, false);
-}
 
 export const config: Config = {
   port: 0,

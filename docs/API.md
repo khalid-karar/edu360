@@ -149,3 +149,8 @@ Unpaid holds lapse after 15 minutes. Requests the teacher never answers are decl
 | `POST /admin/finance/payout-runs` | Creates one payout per teacher for payments past the 48-hour window. Skips disputed payments, frozen teachers, and a new teacher's first 14 days. A teacher's first payout is `pending` and needs a different finance officer to approve it; later ones are approved by the run. Runs never overlap. |
 | `GET /admin/finance/payouts?status=`, `GET .../:id` | The detail shows the full IBAN and holder name; each read is audited. |
 | `POST /admin/finance/payouts/:id/approve`, `/hold`, `/mark-paid`, `/fail` | `mark-paid` takes the bank reference (transfers are made outside the system for now). `fail` releases the payments for the next run. |
+
+## Test-mode only
+
+`POST /dev/pay {bookingId}` exists only when `PAYMENTS=mock`. It plays the card form: it authorizes a hold for the booking's exact price and attaches it, for the payer only. It is not registered when `PAYMENTS=moyasar`.
+
