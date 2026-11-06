@@ -114,3 +114,9 @@ button.card.click:hover { border-color: var(--teal); }
 .tbl { width: 100%; border-collapse: collapse; }
 .tbl th, .tbl td { text-align: start; padding: 8px 6px; border-bottom: 1px solid var(--line); font-size: .92rem; vertical-align: top; }
 .pt-main > .btn { align-self: flex-start; }
+
+/* notifications */
+.pt .pt-bell { position: relative; color: #fff; display: inline-flex; padding: 6px; border-radius: 10px; }
+.pt .pt-bell:hover { background: rgba(255,255,255,.12); }
+.pt-bell-n { position: absolute; top: -2px; inset-inline-start: -2px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 99px; background: var(--coral); color: #fff; font-size: .7rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.card.notice.unread { border-inline-start: 4px solid var(--coral); background: #fffaf6; }

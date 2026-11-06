@@ -3,6 +3,7 @@ import { strikeAction, type StrikeAction } from "../domain/strikes.js";
 import { HttpError } from "../http/errors.js";
 import type { PaymentProvider } from "../payments/provider.js";
 import { audit } from "./audit.js";
+import { notify } from "./notifications.js";
 import { cancelUpcomingForTeacher } from "./bookings.js";
 
 /** A strike counts toward the ladder for 12 months. */
@@ -67,6 +68,7 @@ export async function issueStrike(
     if (action !== "warn" && u.role === "teacher") {
       await tx.query("UPDATE teacher_profiles SET status='suspended', payouts_frozen=true WHERE user_id=$1", [input.userId]);
     }
+    await notify(tx, { userId: input.userId, kind: "strike", link: "/portal/account" }, now);
     await audit(tx, {
       actorId: staffId,
       action: "safety.strike_issued",

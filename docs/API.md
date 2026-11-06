@@ -150,6 +150,13 @@ Unpaid holds lapse after 15 minutes. Requests the teacher never answers are decl
 | `GET /admin/finance/payouts?status=`, `GET .../:id` | The detail shows the full IBAN and holder name; each read is audited. |
 | `POST /admin/finance/payouts/:id/approve`, `/hold`, `/mark-paid`, `/fail` | `mark-paid` takes the bank reference (transfers are made outside the system for now). `fail` releases the payments for the next run. |
 
+## Notifications (any signed-in user, including suspended or unverified)
+
+`GET /api/notifications?limit=&unread=` → `{ unread, items: [{ id, kind, title, body, link, read, createdAt }] }` (own only, newest first).
+`GET /api/notifications/unread-count` → `{ unread }`. `POST /api/notifications/read` with `{ ids?: uuid[] }` marks those (or all) read; other people's ids are ignored.
+
+Notifications are written in the same transaction as the event they announce. Sent for: new paid request (teacher), accepted / declined / cancelled / expired unpaid / unanswered, lesson completed, no-show report, one-hour reminder (both sides, once), new chat message (one unread per booking), vetting decision, strike, dispute opened and decided, payout updates, report resolved. The text of every notice lives in `src/domain/notifications.ts`. Kinds flagged `sms` are also texted by the sweep (3 attempts, dropped after 6 hours). Strike notices never include the internal reason.
+
 ## Test-mode only
 
 `POST /dev/pay {bookingId}` exists only when `PAYMENTS=mock`. It plays the card form: it authorizes a hold for the booking's exact price and attaches it, for the payer only. It is not registered when `PAYMENTS=moyasar`.

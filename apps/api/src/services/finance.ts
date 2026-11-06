@@ -4,6 +4,7 @@ import { splitAmount } from "../domain/money.js";
 import { HttpError, isUniqueViolation } from "../http/errors.js";
 import type { PaymentProvider } from "../payments/provider.js";
 import { audit } from "./audit.js";
+import { notify } from "./notifications.js";
 
 export interface FinanceDeps {
   db: Db;
@@ -19,7 +20,7 @@ export async function openDispute(d: FinanceDeps, payerId: string, bookingId: st
   const now = d.now();
   try {
     return await d.db.tx(async (tx) => {
-      const b = (await tx.query<{ payer_id: string; status: string }>("SELECT payer_id, status FROM bookings WHERE id = $1 FOR UPDATE", [bookingId])).rows[0];
+      const b = (await tx.query<{ payer_id: string; status: string; teacher_id: string }>("SELECT payer_id, status, teacher_id FROM bookings WHERE id = $1 FOR UPDATE", [bookingId])).rows[0];
       if (!b || b.payer_id !== payerId) throw new HttpError(404, "not_found");
       if (b.status !== "completed" && b.status !== "no_show_learner") throw new HttpError(409, "not_disputable");
       const p = (await tx.query<{ status: string; captured_at: Date | null; payout_id: string | null }>("SELECT status, captured_at, payout_id FROM payments WHERE booking_id = $1", [bookingId])).rows[0];
@@ -27,6 +28,7 @@ export async function openDispute(d: FinanceDeps, payerId: string, bookingId: st
       if (p.payout_id || now.getTime() > p.captured_at.getTime() + DISPUTE_WINDOW_HOURS * HOUR) throw new HttpError(409, "dispute_window_closed");
       const r = await tx.query<{ id: string }>("INSERT INTO disputes (booking_id, opened_by, reason, created_at) VALUES ($1,$2,$3,$4) RETURNING id", [bookingId, payerId, reason, now]);
       await audit(tx, { actorId: payerId, action: "dispute.opened", targetType: "dispute", targetId: r.rows[0]!.id, reason, detail: { bookingId } });
+      await notify(tx, { userId: b.teacher_id, kind: "dispute_opened", link: `/portal/booking?id=${bookingId}` }, now);
       return r.rows[0]!.id;
     });
   } catch (e) {
@@ -82,6 +84,12 @@ export async function decideDispute(d: FinanceDeps, staffId: string, disputeId: 
     }
     await tx.query("UPDATE disputes SET outcome=$2, refund_halalas=$3, decided_by=$4, decided_at=$5, note=$6 WHERE id=$1", [disputeId, decision.outcome, refund, staffId, now, note]);
     await audit(tx, { actorId: staffId, action: "finance.dispute_decided", targetType: "dispute", targetId: disputeId, reason: note, detail: { outcome: decision.outcome, refundHalalas: refund, bookingId: disp.booking_id } });
+    const payer = (await tx.query<{ payer_id: string }>("SELECT payer_id FROM bookings WHERE id = $1", [disp.booking_id])).rows[0]!.payer_id;
+    const label = decision.outcome === "release_to_teacher" ? "رُفض الاعتراض وأُفرج عن المبلغ للمعلّم" : decision.outcome === "full_refund" ? "قُبل الاعتراض واسترداد كامل" : "قُبل الاعتراض واسترداد جزئي";
+    const amount = refund > 0 ? `${refund / 100} ر.س` : undefined;
+    const link = `/portal/booking?id=${disp.booking_id}`;
+    await notify(tx, { userId: payer, kind: "dispute_decided", vars: { decision: label, ...(amount ? { amount } : {}) }, link }, now);
+    await notify(tx, { userId: p.teacher_id, kind: "dispute_decided", vars: { decision: label }, link }, now);
     return { refundedHalalas: refund };
   });
 }
@@ -196,6 +204,9 @@ export async function actOnPayout(d: FinanceDeps, staffId: string, payoutId: str
       // Release the payments so the next run picks them up again.
       await tx.query("UPDATE payments SET payout_id = NULL WHERE payout_id = $1", [payoutId]);
     }
+    const pt = (await tx.query<{ teacher_id: string; amount_halalas: number }>("SELECT teacher_id, amount_halalas FROM payouts WHERE id = $1", [payoutId])).rows[0]!;
+    const said: Partial<Record<PayoutAction, string>> = { approve: "اعتُمد تحويلك وسيُرسل إلى حسابك قريباً", hold: "عُلّق تحويلك مؤقتاً للمراجعة", mark_paid: "تم تحويل المبلغ إلى حسابك", fail: "تعذّر تحويل المبلغ، سنعيد إدراجه في الدفعة القادمة" };
+    await notify(tx, { userId: pt.teacher_id, kind: "payout_update", vars: { decision: said[action] ?? "", amount: `${pt.amount_halalas / 100} ر.س` }, link: "/portal/earnings" }, now);
     await audit(tx, { actorId: staffId, action: `finance.payout_${action}`, targetType: "payout", targetId: payoutId, reason: input.note ?? null, detail: input.bankReference ? { bankReference: input.bankReference } : undefined });
     return status;
   });

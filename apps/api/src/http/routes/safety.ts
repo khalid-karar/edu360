@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { audit } from "../../services/audit.js";
+import { notify } from "../../services/notifications.js";
 import { issueStrike } from "../../services/trust.js";
 import type { Ctx } from "../context.js";
 import { HttpError, parse, uuidParam } from "../errors.js";
@@ -79,11 +80,12 @@ export const safetyRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     const id = idOf(req);
     const b = parse(z.object({ outcome: z.enum(["resolved", "dismissed"]), note: z.string().trim().min(10).max(1000) }).strict(), req.body);
     await db.tx(async (tx) => {
-      const r = (await tx.query<{ status: string; assigned_to: string | null }>("SELECT status, assigned_to FROM reports WHERE id=$1 FOR UPDATE", [id])).rows[0];
+      const r = (await tx.query<{ status: string; assigned_to: string | null; reporter_id: string }>("SELECT status, assigned_to, reporter_id FROM reports WHERE id=$1 FOR UPDATE", [id])).rows[0];
       if (!r) throw new HttpError(404, "not_found");
       if (r.status !== "reviewing") throw new HttpError(409, "invalid_state", { status: r.status });
       if (r.assigned_to !== s.id) throw new HttpError(403, "not_assigned_to_you");
       await tx.query("UPDATE reports SET status=$2, resolution_note=$3, resolved_at=$4 WHERE id=$1", [id, b.outcome, b.note, ctx.now()]);
+      await notify(tx, { userId: r.reporter_id, kind: "report_update", vars: { decision: b.outcome === "resolved" ? "راجعنا بلاغك واتُّخذ إجراء مناسب" : "راجعنا بلاغك ولم نجد ما يستدعي إجراءً" }, link: "/portal/account" }, ctx.now());
       await audit(tx, { actorId: s.id, action: "safety.report_resolved", targetType: "report", targetId: id, reason: b.note, detail: { outcome: b.outcome } });
     });
     return { ok: true };

@@ -17,6 +17,7 @@ import { financeRoutes } from "./routes/finance.js";
 import { safetyRoutes } from "./routes/safety.js";
 import { trustRoutes } from "./routes/trust.js";
 import { vettingRoutes } from "./routes/vetting.js";
+import { notificationRoutes } from "./routes/notifications.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 
 /** Builds the API without opening a port, so tests can call it with app.inject(). Every route is under /api. */
@@ -61,6 +62,7 @@ export function buildApp(ctx: Ctx): FastifyInstance {
   app.register(trustRoutes(ctx), { prefix: "/api" });
   app.register(safetyRoutes(ctx), { prefix: "/api" });
   app.register(financeRoutes(ctx), { prefix: "/api" });
+  app.register(notificationRoutes(ctx), { prefix: "/api" });
   app.register(devRoutes(ctx), { prefix: "/api" });
   return app;
 }

@@ -1,6 +1,7 @@
 import type { Db } from "../db/db.js";
 import { filterMessage, flagCheatingRequest } from "../domain/chat-filter.js";
 import { HttpError } from "../http/errors.js";
+import { notify, riyadhWhen } from "./notifications.js";
 
 const DAY = 86_400_000;
 export const CHAT_AFTER_LESSON_DAYS = 7;
@@ -78,6 +79,13 @@ export async function postMessage(db: Db, now: Date, userId: string, bookingId: 
     } else if (flagCheatingRequest(body)) {
       // Delivered, but a person looks at it: cheating services are against the terms.
       await tx.query("INSERT INTO flags (source, target_type, target_id, category, severity, created_at) VALUES ('rule','message',$1,'cheating',2,$2)", [msg.id, now]);
+    }
+    if (!verdict.blocked) {
+      // One unread "new message" per booking is enough; it clears when the person opens the notifications.
+      const to = userId === b.teacher_id ? b.payer_id : b.teacher_id;
+      const names = (await tx.query<{ sender: string; starts_at: Date }>("SELECT u.display_name AS sender, bk.starts_at FROM users u, bookings bk WHERE u.id = $1 AND bk.id = $2", [userId, bookingId])).rows[0];
+      const pending = await tx.query("SELECT 1 FROM notifications WHERE user_id = $1 AND kind = 'new_message' AND link = $2 AND read_at IS NULL", [to, `/portal/booking?id=${bookingId}`]);
+      if (!pending.rowCount && names) await notify(tx, { userId: to, kind: "new_message", vars: { who: names.sender, when: riyadhWhen(names.starts_at) }, link: `/portal/booking?id=${bookingId}` }, now);
     }
     return { id: msg.id, createdAt: msg.created_at };
   });

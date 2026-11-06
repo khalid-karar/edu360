@@ -88,8 +88,9 @@ Business rules live in pure functions with no framework or database, so they are
 | 2a. HTTP API: foundation | PostgreSQL and migrations, login by one-time code, sessions, staff MFA, Nafath identity, teacher onboarding, vetting, categories, audit log | Done |
 | 2b. HTTP API: marketplace | Child accounts and guardian approvals, availability, search, bookings with authorize-then-capture, Moyasar webhook, chat with filter | Done (not yet verified against the Moyasar sandbox) |
 | 2c. HTTP API: trust and money | Reports, strikes, disputes, payout runs, refunds, admin queues for safety and finance | Done (refunds and payout transfers untested against Moyasar and a real bank) |
-| 3. Web app | Arabic RTL learner, guardian, teacher and admin screens | Next |
-| 4. Video and identity | LiveKit rooms with recording; Nafath integration (needs an integrator contract and credentials) | In parallel with 3 |
+| 3. Web app | Arabic RTL learner, guardian, teacher and admin screens (including staff consoles and teacher application) | Done against the local sandbox; real card form and file upload wait on Moyasar and Oracle |
+| 4a. Notifications | In-app inbox with bell, reminders, SMS for urgent events | Done (SMS gateway is a mock until a provider is chosen) |
+| 4b. Video and identity | LiveKit rooms with recording; Nafath integration (needs an integrator contract and credentials) | In parallel with 3 |
 | 5. Pilot hardening | Penetration test, load test, backups restore drill, policies published | Before pilot |
 
 Integrations that need outside contracts (Nafath, Moyasar activation, SMS gateway) are built against interfaces with local fakes, so development does not wait on them.

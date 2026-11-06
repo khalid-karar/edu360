@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { api } from "../lib/api";
 import { errorText } from "../lib/api";
 import { STATUS_AR } from "../lib/format";
 import { isStaffRole, useSession, type User } from "../lib/session";
@@ -21,6 +22,25 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
       {children}
       {hint && <small>{hint}</small>}
     </label>
+  );
+}
+
+/** Bell with the unread count. Polls gently and refreshes when the notifications page changes something. */
+function Bell() {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    let live = true;
+    const load = () => api<{ unread: number }>("GET", "/notifications/unread-count").then((r) => live && setN(r.unread)).catch(() => {});
+    load();
+    const t = setInterval(load, 30_000);
+    window.addEventListener("ilmak:notifications", load);
+    return () => { live = false; clearInterval(t); window.removeEventListener("ilmak:notifications", load); };
+  }, []);
+  return (
+    <Link href="/portal/notifications" className="pt-bell" aria-label={n > 0 ? `الإشعارات، ${n} غير مقروء` : "الإشعارات"}>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>
+      {n > 0 && <span className="pt-bell-n">{n > 9 ? "9+" : n}</span>}
+    </Link>
   );
 }
 
@@ -58,6 +78,7 @@ export function Shell({ roles, children, allowPending }: { roles?: User["role"][
             {items.map((i) => <Link key={i.href} href={i.href} aria-current={here(i.href)}>{i.label}</Link>)}
           </nav>
           <div className="pt-who">
+            <Bell />
             <span>{user.displayName}</span>
             <button onClick={() => signOut().then(() => router.replace("/portal/login"))}>خروج</button>
           </div>

@@ -21,6 +21,8 @@ import { payoutEligibleAt } from "../domain/payouts.js";
 import { HttpError, isUniqueViolation } from "../http/errors.js";
 import { ProviderError, confirmAuthorization, type PaymentProvider } from "../payments/provider.js";
 import { audit } from "./audit.js";
+import type { NoticeKind } from "../domain/notifications.js";
+import { notify, riyadhWhen } from "./notifications.js";
 
 const MIN = 60_000;
 const HOUR = 3_600_000;
@@ -72,6 +74,36 @@ const paymentOf = async (tx: Db, bookingId: string) =>
   (await tx.query<PaymentRow>("SELECT * FROM payments WHERE booking_id = $1", [bookingId])).rows[0];
 
 const endOf = (b: BookingRow) => new Date(b.starts_at.getTime() + b.duration_min * MIN);
+
+
+// ───────────────────────────── telling people ─────────────────────────────
+
+/** Notifies the right people about a booking event, inside the event's own transaction. */
+async function tell(tx: Db, b: BookingRow, kind: NoticeKind, now: Date, by?: "teacher" | "learner" | "system"): Promise<void> {
+  const names = (
+    await tx.query<{ teacher: string; learner: string }>(
+      "SELECT tu.display_name AS teacher, lu.display_name AS learner FROM users tu, users lu WHERE tu.id = $1 AND lu.id = $2",
+      [b.teacher_id, b.learner_id],
+    )
+  ).rows[0];
+  const when = riyadhWhen(b.starts_at);
+  const link = `/portal/booking?id=${b.id}`;
+  const toTeacher = (k: NoticeKind = kind) => notify(tx, { userId: b.teacher_id, kind: k, vars: { who: names?.learner ?? "", when, ...(by ? { by } : {}) }, link }, now);
+  const toPayer = (k: NoticeKind = kind) => notify(tx, { userId: b.payer_id, kind: k, vars: { who: names?.teacher ?? "", when, ...(by ? { by } : {}) }, link }, now);
+  switch (kind) {
+    case "booking_requested": return toTeacher();
+    case "booking_accepted": case "booking_declined": case "booking_expired_unpaid": case "booking_unanswered": case "lesson_completed": return toPayer();
+    case "booking_cancelled":
+      if (by === "teacher") return toPayer();
+      if (by === "learner") return toTeacher();
+      await toPayer();
+      return toTeacher();
+    case "no_show":
+      await toPayer();
+      return toTeacher();
+    default: return;
+  }
+}
 
 // ───────────────────────────── creating a booking ─────────────────────────────
 
@@ -219,6 +251,7 @@ export async function attachAuthorizedPayment(d: BookingDeps, bookingId: string,
         "UPDATE bookings SET status=$2, expires_at=$3 WHERE id=$1 RETURNING *",
         [b.id, status, new Date(now.getTime() + REQUEST_EXPIRY_HOURS * HOUR)],
       );
+      await tell(tx, upd.rows[0]!, "booking_requested", now);
       return { ok: true, booking: upd.rows[0]! };
     });
   } catch (e) {
@@ -286,6 +319,7 @@ export async function acceptBooking(d: BookingDeps, teacherId: string, bookingId
     if (b.status === "requested" && b.expires_at && b.expires_at <= now) throw new HttpError(409, "request_expired");
     await move(tx, b, "accept");
     await tx.query("INSERT INTO sessions (booking_id, room_name) VALUES ($1,$2) ON CONFLICT (booking_id) DO NOTHING", [b.id, `ilmak-${randomUUID()}`]);
+    await tell(tx, b, "booking_accepted", now);
   });
 }
 
@@ -295,6 +329,7 @@ export async function declineBooking(d: BookingDeps, teacherId: string, bookingI
     ownBookingAsTeacher(b, teacherId);
     await move(tx, b, "decline");
     await applySettlement(tx, d, b, await paymentOf(tx, b.id), settleDeclined());
+    await tell(tx, b, "booking_declined", d.now());
   });
 }
 
@@ -308,6 +343,7 @@ export async function completeBooking(d: BookingDeps, teacherId: string, booking
     await move(tx, b, "complete");
     await applySettlement(tx, d, b, await paymentOf(tx, b.id), settleCompleted(b.price_halalas));
     await tx.query("UPDATE teacher_profiles SET completed_sessions = completed_sessions + 1 WHERE user_id = $1", [b.teacher_id]);
+    await tell(tx, b, "lesson_completed", now);
   });
 }
 
@@ -324,6 +360,7 @@ export async function cancelBooking(d: BookingDeps, actor: Actor, bookingId: str
     // Before the teacher has agreed, leaving is always free. After that, the published late-cancel rule applies.
     const s: Settlement = b.status === "confirmed" ? settleCancellation(by, now, b.starts_at, b.price_halalas) : settleDeclined();
     await applySettlement(tx, d, b, await paymentOf(tx, b.id), s);
+    await tell(tx, b, "booking_cancelled", now, by);
   });
 }
 
@@ -349,6 +386,7 @@ export async function reportNoShow(d: BookingDeps, actor: Actor, bookingId: stri
       await tx.query("UPDATE teacher_profiles SET reliability_score = GREATEST(0, reliability_score - 0.05) WHERE user_id = $1", [b.teacher_id]);
     }
     await audit(tx, { actorId: actor.id, action: "booking.no_show_reported", targetType: "booking", targetId: b.id, detail: { absent: who } });
+    await tell(tx, b, "no_show", now);
   });
 }
 
@@ -369,10 +407,12 @@ export async function expireStale(d: BookingDeps): Promise<{ cancelled: number; 
         if (b.status !== row.status || !b.expires_at || b.expires_at > now) return; // someone acted first
         if (b.status === "awaiting_payment") {
           await move(tx, b, "cancel", { cancelledBy: "system" });
+          await tell(tx, b, "booking_expired_unpaid", now);
           out.cancelled++;
         } else {
           await move(tx, b, "decline", { cancelledBy: "system" });
           await applySettlement(tx, d, b, await paymentOf(tx, b.id), settleDeclined());
+          await tell(tx, b, "booking_unanswered", now);
           out.declined++;
         }
       });
@@ -403,6 +443,7 @@ export async function cancelUpcomingForTeacher(d: BookingDeps, teacherId: string
         await move(tx, b, "cancel", { cancelledBy: "system" });
         await applySettlement(tx, d, b, await paymentOf(tx, b.id), settleDeclined());
         await audit(tx, { actorId: null, action: "booking.cancelled_teacher_suspended", targetType: "booking", targetId: b.id });
+        await notify(tx, { userId: b.payer_id, kind: "booking_cancelled", vars: { by: "system", when: riyadhWhen(b.starts_at) }, link: `/portal/booking?id=${b.id}` }, now);
       });
       out.cancelled++;
     } catch (e) {

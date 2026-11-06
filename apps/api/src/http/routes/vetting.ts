@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { checkDecision, RUBRIC_KEYS, RUBRIC_MAX_EACH, rubricTotal, type Rubric } from "../../domain/vetting.js";
 import { audit } from "../../services/audit.js";
+import { notify } from "../../services/notifications.js";
 import type { Ctx } from "../context.js";
 import { HttpError, parse, uuidParam } from "../errors.js";
 import { guard, me } from "../guard.js";
@@ -125,6 +126,7 @@ export const vettingRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
           [id],
         );
       }
+      await notify(tx, { userId: id, kind: "vetting_decision", vars: { decision: b.decision, ...(b.reason ? { note: b.reason } : {}) }, link: "/portal/apply" }, ctx.now());
       await audit(tx, {
         actorId: officer.id,
         action: "vetting.decision",
