@@ -66,11 +66,16 @@ The coming-soon site stays on Netlify until launch. **Note:** the waitlist form 
 
 ```
 apps/web        Next.js site (static holding page today; becomes the app)
-apps/api        TypeScript domain core and, next, the HTTP layer
-  src/domain      pure business rules: money, bookings, chat filter, payouts, strikes
+apps/api        TypeScript API (Fastify + PostgreSQL)
+  src/domain      pure business rules: money, bookings, chat filter, payouts, strikes, vetting, IBAN
   src/payments    provider interface, Moyasar adapter, webhook verification
-  test            unit tests (no network, no database)
-db/schema.sql   PostgreSQL schema
+  src/providers   SMS and Nafath interfaces with local fakes
+  src/http        app, route guards (roles, MFA), rate limits, routes
+  src/services    one-time codes, login sessions, audit log
+  src/security    hashing, encryption, TOTP
+  src/cli         create-staff (staff accounts are never created through the public API)
+  migrations      numbered SQL files, applied in order at start-up or with `npm run migrate`
+  test            unit tests plus API tests on a real PostgreSQL (PGlite, in process)
 ```
 
 Business rules live in pure functions with no framework or database, so they are fast to test and cannot be bypassed by a controller forgetting a check.
@@ -80,9 +85,18 @@ Business rules live in pure functions with no framework or database, so they are
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 1. Domain core | Commission, booking policy and state machine, payment adapter and verification, chat filter, payout rules, strike policy, all tested | Done |
-| 2. HTTP API | Auth (OTP), teacher onboarding and vetting, availability, bookings, payments endpoints and webhook, chat, reports, disputes, admin queues, audit log; PostgreSQL repositories and migrations | Next |
-| 3. Web app | Arabic RTL learner, guardian, teacher and admin screens | After phase 2 |
-| 4. Video and identity | LiveKit rooms with recording; Nafath integration (needs an integrator contract and credentials) | In parallel with 3 |
-| 5. Pilot hardening | Penetration test, load test, backups restore drill, policies published | Before pilot |
+| 2a. HTTP API: foundation | PostgreSQL and migrations, login by one-time code, sessions, staff MFA, Nafath identity, teacher onboarding, vetting, categories, audit log | Done |
+| 2b. HTTP API: marketplace | Child accounts and guardian approvals, availability, search, bookings with authorize-then-capture, Moyasar webhook, chat with filter | Done (not yet verified against the Moyasar sandbox) |
+| 2c. HTTP API: trust and money | Reports, strikes, disputes, payout runs, refunds, admin queues for safety and finance | Done (refunds and payout transfers untested against Moyasar and a real bank) |
+| 3. Web app | Arabic RTL learner, guardian, teacher and admin screens (including staff consoles and teacher application) | Done against the local sandbox; real card form and file upload wait on Moyasar and Oracle |
+| 4a. Notifications | In-app inbox with bell, reminders, SMS for urgent events | Done (SMS gateway is a mock until a provider is chosen) |
+| 4b. Suspension and appeals | Suspending a learner or guardian cancels their lessons; appeal against any strike decided by a second officer; banned users get an appeal-only session | Done |
+| 4c. First-lesson guarantee | Full refund of a first lesson inside the dispute window; platform pays the teacher half of the normal net; per-learner and per-teacher caps | Done |
+| 4d. Data rights | PDPL export and erasure with cooling-off; legally required records kept and anonymised | Done |
+| 5a. Lesson room | Room tickets, entry window, attendance log used as evidence for no-shows and disputes, in-room whiteboard | Built against a mock; real LiveKit not yet tried |
+| 5b. Recording and identity | Opt-in recording (mandatory for minors) via LiveKit egress; Nafath integration (needs an integrator contract and credentials) | Not started |
+| 5c. Self-audit | Access matrix and object-level access tests, security headers, load and race test on real PostgreSQL (see SECURITY-AUDIT.md) | Done |
+| 5d. Pre-booking questions and trust badges | Inquiry threads (reusing the chat filter and flags), badges (founding, experienced, top rated, reliable, fast replier), rating/badge filters and sorting | Done |
+| 6. Pilot hardening | Independent penetration test, backups restore drill, policies published | Before pilot |
 
 Integrations that need outside contracts (Nafath, Moyasar activation, SMS gateway) are built against interfaces with local fakes, so development does not wait on them.

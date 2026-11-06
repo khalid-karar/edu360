@@ -1,0 +1,85 @@
+import Fastify, { type FastifyInstance } from "fastify";
+import { ProviderError } from "../payments/provider.js";
+import type { Ctx } from "./context.js";
+import { HttpError } from "./errors.js";
+import { rateLimit } from "./rate-limit.js";
+import { adminRoutes } from "./routes/admin.js";
+import { authRoutes } from "./routes/auth.js";
+import { availabilityRoutes } from "./routes/availability.js";
+import { bookingRoutes } from "./routes/bookings.js";
+import { guardianRoutes } from "./routes/guardian.js";
+import { identityRoutes } from "./routes/identity.js";
+import { miscRoutes } from "./routes/misc.js";
+import { teacherDirectoryRoutes } from "./routes/teachers.js";
+import { teacherRoutes } from "./routes/teacher.js";
+import { devRoutes } from "./routes/dev.js";
+import { financeRoutes } from "./routes/finance.js";
+import { safetyRoutes } from "./routes/safety.js";
+import { trustRoutes } from "./routes/trust.js";
+import { vettingRoutes } from "./routes/vetting.js";
+import { dataRightsRoutes } from "./routes/dataRights.js";
+import { inquiryRoutes } from "./routes/inquiries.js";
+import { notificationRoutes } from "./routes/notifications.js";
+import { webhookRoutes } from "./routes/webhooks.js";
+
+declare module "fastify" {
+  interface FastifyInstance {
+    /** Every route that was registered. The access-matrix test walks it so a new route cannot ship unguarded unnoticed. */
+    routeTable: { method: string; url: string }[];
+  }
+}
+
+/** Builds the API without opening a port, so tests can call it with app.inject(). Every route is under /api. */
+export function buildApp(ctx: Ctx): FastifyInstance {
+  // Behind Caddy: the client address comes from X-Forwarded-For, and only the proxy can reach us (bound to 127.0.0.1).
+  const app = Fastify({ trustProxy: true, bodyLimit: 16_384, logger: false });
+
+  const routeTable: { method: string; url: string }[] = [];
+  app.addHook("onRoute", (r) => {
+    for (const method of [r.method].flat()) if (method !== "HEAD" && method !== "OPTIONS") routeTable.push({ method, url: r.url });
+  });
+  app.decorate("routeTable", routeTable);
+
+  app.addContentTypeParser("application/x-www-form-urlencoded", { parseAs: "string" }, (_req, body, done) => {
+    done(null, Object.fromEntries(new URLSearchParams(body as string)));
+  });
+
+  app.addHook("onRequest", rateLimit(ctx.limits.global, { name: "global", store: ctx.rateStore }));
+  app.addHook("onSend", async (_req, reply) => {
+    reply.header("cache-control", "no-store");
+    reply.header("x-content-type-options", "nosniff");
+  });
+
+  app.setNotFoundHandler((_req, reply) => reply.code(404).send({ ok: false, error: "not_found" }));
+  app.setErrorHandler((err, _req, reply) => {
+    if (err instanceof HttpError) {
+      return reply.code(err.status).send({ ok: false, error: err.message, ...(err.details !== undefined ? { details: err.details } : {}) });
+    }
+    if (err instanceof ProviderError) return reply.code(err.status).send({ ok: false, error: err.message });
+    const status = (err as { statusCode?: number }).statusCode;
+    if (status === 413) return reply.code(413).send({ ok: false, error: "too_large" });
+    if (status && status >= 400 && status < 500) return reply.code(400).send({ ok: false, error: "bad_request" });
+    console.error(err);
+    return reply.code(500).send({ ok: false, error: "server_error" });
+  });
+
+  app.register(miscRoutes(ctx));
+  app.register(authRoutes(ctx), { prefix: "/api" });
+  app.register(identityRoutes(ctx), { prefix: "/api" });
+  app.register(teacherRoutes(ctx), { prefix: "/api" });
+  app.register(vettingRoutes(ctx), { prefix: "/api" });
+  app.register(adminRoutes(ctx), { prefix: "/api" });
+  app.register(guardianRoutes(ctx), { prefix: "/api" });
+  app.register(availabilityRoutes(ctx), { prefix: "/api" });
+  app.register(teacherDirectoryRoutes(ctx), { prefix: "/api" });
+  app.register(bookingRoutes(ctx), { prefix: "/api" });
+  app.register(webhookRoutes(ctx), { prefix: "/api" });
+  app.register(trustRoutes(ctx), { prefix: "/api" });
+  app.register(safetyRoutes(ctx), { prefix: "/api" });
+  app.register(financeRoutes(ctx), { prefix: "/api" });
+  app.register(notificationRoutes(ctx), { prefix: "/api" });
+  app.register(dataRightsRoutes(ctx), { prefix: "/api" });
+  app.register(inquiryRoutes(ctx), { prefix: "/api" });
+  app.register(devRoutes(ctx), { prefix: "/api" });
+  return app;
+}

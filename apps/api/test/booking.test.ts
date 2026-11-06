@@ -70,6 +70,9 @@ describe("settlement of held money", () => {
 
 describe("booking state machine", () => {
   it("follows the happy path", () => {
+    expect(nextStatus("awaiting_payment", "payment_authorized")).toBe("requested");
+    expect(nextStatus("awaiting_payment", "cancel")).toBe("cancelled");
+    expect(() => nextStatus("awaiting_payment", "accept")).toThrow(InvalidTransition);
     expect(nextStatus("requested", "accept")).toBe("confirmed");
     expect(nextStatus("confirmed", "complete")).toBe("completed");
   });
