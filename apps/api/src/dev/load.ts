@@ -27,7 +27,7 @@ const HOUR = 3_600_000;
 const config: Config = {
   port: PORT, databaseUrl: process.env["DATABASE_URL"]!, providers: "mock", payments: "mock", webhookSecret: "x",
   waitlistFile: "/tmp/ilmak-load-waitlist.jsonl", idHashKey: randomBytes(32), mfaEncKey: randomBytes(32), otpKey: randomBytes(32),
-  sessionHours: 24, staffSessionHours: 8, uploadsPrefix: "uploads/", uploadDir: "/tmp/ilmak-load-storage", uploadMaxBytes: 5_000_000, uploadVideoMaxBytes: 50_000_000, echoOtp: true,
+  sessionHours: 24, staffSessionHours: 8, uploadsPrefix: "uploads/", uploadDir: "/tmp/ilmak-load-storage", uploadMaxBytes: 5_000_000, uploadVideoMaxBytes: 50_000_000, cookieSecure: false, allowedOrigins: [], echoOtp: true,
 };
 const db = pgDb(config.databaseUrl);
 await migrate(db);

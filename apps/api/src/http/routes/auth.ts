@@ -7,6 +7,7 @@ import { checkOtp, consumeOtp, PHONE_RE, requestOtp } from "../../services/otp.j
 import { createSession, revokeSession } from "../../services/sessions.js";
 import type { Ctx } from "../context.js";
 import { HttpError, parse } from "../errors.js";
+import { CLIENT_HEADER, clearSessionCookie, setSessionCookie } from "../session-cookie.js";
 import { guard, isStaff, me } from "../guard.js";
 import { rateLimit } from "../rate-limit.js";
 
@@ -85,9 +86,13 @@ export const authRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
       now: ctx.now(),
     });
     reply.code(200);
+    // The web app says who it is with a header and gets its session as an HttpOnly cookie, never in the response body.
+    // API clients and tests do not send it and receive the bearer token as before.
+    const viaCookie = req.headers[CLIENT_HEADER] === "web";
+    if (viaCookie) setSessionCookie(reply, ctx.config, session.token, (session.expiresAt.getTime() - ctx.now().getTime()) / 1000);
     return {
       ok: true,
-      token: session.token,
+      ...(viaCookie ? {} : { token: session.token }),
       expiresAt: session.expiresAt.toISOString(),
       user: { id: user.id, role: user.role, status: user.status, displayName: user.display_name },
       next: staff ? "mfa" : user.status === "banned" ? "appeal" : user.status === "pending" ? "identity" : null,
@@ -136,8 +141,9 @@ export const authRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     return { id: u.id, role: u.role, status: u.status, displayName: u.displayName, mfaVerified: u.mfaVerified };
   });
 
-  app.post("/auth/logout", { preHandler: guard(ctx, loose) }, async (req) => {
+  app.post("/auth/logout", { preHandler: guard(ctx, loose) }, async (req, reply) => {
     await revokeSession(ctx.db, me(req).sessionId, ctx.now());
+    clearSessionCookie(reply, ctx.config);
     return { ok: true };
   });
 };

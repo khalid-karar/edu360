@@ -32,6 +32,10 @@ const Env = z.object({
   UPLOAD_MAX_BYTES: z.coerce.number().int().positive().max(20_000_000).default(5_000_000),
   /** Intro and sample videos. Held in memory while saving, so keep this modest until object storage streams. */
   UPLOAD_VIDEO_MAX_BYTES: z.coerce.number().int().positive().max(200_000_000).default(50_000_000),
+  /** Mark the session cookie Secure. Only the plain-http local sandbox turns this off. */
+  COOKIE_SECURE: z.enum(["true", "false"]).default("true"),
+  /** Extra origins allowed to send cookie-authenticated changes and open sockets, comma separated. Same-host requests are always allowed. */
+  ALLOWED_ORIGINS: z.string().default(""),
   /** Shared rate-limit counters. Without it each API process counts on its own, which is fine for one process only. */
   REDIS_URL: z.string().min(1).optional(),
   /** Allowed prefix for uploaded file keys; real storage issues keys under it. */
@@ -56,6 +60,8 @@ export interface Config {
   uploadMaxBytes: number;
   uploadVideoMaxBytes: number;
   redisUrl?: string;
+  cookieSecure: boolean;
+  allowedOrigins: string[];
   video?: { kind: "mock" } | { kind: "livekit"; url: string; apiKey: string; apiSecret: string };
   /** Mock mode only: return the one-time code in the response. Real SMS never echoes it. */
   echoOtp: boolean;
@@ -90,6 +96,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     uploadMaxBytes: e.UPLOAD_MAX_BYTES,
     uploadVideoMaxBytes: e.UPLOAD_VIDEO_MAX_BYTES,
     ...(e.REDIS_URL ? { redisUrl: e.REDIS_URL } : {}),
+    cookieSecure: e.COOKIE_SECURE === "true",
+    allowedOrigins: e.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean),
     echoOtp: e.PROVIDERS === "mock",
   };
 }

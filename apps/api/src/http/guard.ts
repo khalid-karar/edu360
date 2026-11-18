@@ -1,6 +1,7 @@
 import type { FastifyRequest } from "fastify";
 import { findSession } from "../services/sessions.js";
 import { HttpError } from "./errors.js";
+import { SESSION_COOKIE, TOKEN_RE, readCookie, requireCsrfProof } from "./session-cookie.js";
 import type { Ctx } from "./context.js";
 
 export const STAFF_ROLES = ["vetting_officer", "safety_officer", "finance_officer", "super_admin"] as const;
@@ -41,9 +42,17 @@ export interface GuardOpts {
 /** Route pre-handler: who is calling, are they allowed, and have staff passed MFA. */
 export function guard(ctx: Ctx, opts: GuardOpts = {}) {
   return async (req: FastifyRequest) => {
-    const m = /^Bearer ([A-Za-z0-9_-]{20,100})$/.exec(req.headers.authorization ?? "");
-    if (!m) throw new HttpError(401, "unauthenticated");
-    const s = await findSession(ctx.db, m[1]!, ctx.now());
+    // An Authorization header wins. Without one, the browser app's session cookie is used, and then the request must prove it is not forged.
+    let token = /^Bearer ([A-Za-z0-9_-]{20,100})$/.exec(req.headers.authorization ?? "")?.[1];
+    if (!token) {
+      const c = readCookie(req.headers.cookie, SESSION_COOKIE);
+      if (c && TOKEN_RE.test(c)) {
+        requireCsrfProof(req, ctx.config);
+        token = c;
+      }
+    }
+    if (!token) throw new HttpError(401, "unauthenticated");
+    const s = await findSession(ctx.db, token, ctx.now());
     if (!s) throw new HttpError(401, "unauthenticated");
     if (s.status === "banned" && !opts.allowBanned) throw new HttpError(403, "account_banned");
     const user: AuthUser = {

@@ -28,6 +28,8 @@ export const config: Config = {
   uploadDir: "unused",
   uploadMaxBytes: 100_000,
   uploadVideoMaxBytes: 300_000,
+  cookieSecure: true,
+  allowedOrigins: ["https://ilmak.test"],
   echoOtp: true,
 };
 

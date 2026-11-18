@@ -173,3 +173,28 @@ test("a new teacher uploads an intro video and a certificate, and bad files are 
   await expect(page.locator("h3:has-text('3. المستندات')").locator("xpath=..").locator(".chip:has-text('شهادة جامعية')")).toBeVisible();
   clean();
 });
+
+test("the session is an HttpOnly cookie that scripts cannot read, and signing out ends it", async ({ page, context }) => {
+  await signIn(page, "+966500000301");
+  await page.waitForURL("**/portal/search");
+  const cookies = (await context.cookies()).filter((c) => c.name === "ilmak_session");
+  expect(cookies).toHaveLength(1);
+  expect(cookies[0]).toMatchObject({ httpOnly: true, sameSite: "Strict", path: "/api" });
+  // Nothing a script on the page can read holds the session.
+  const visible = await page.evaluate(() => ({ cookie: document.cookie, storage: JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }) }));
+  expect(visible.cookie).not.toContain("ilmak_session");
+  expect(visible.storage).not.toContain("ilmak.token");
+  expect(visible.storage).not.toContain(cookies[0]!.value);
+
+  // A reload keeps the user signed in, from the cookie alone.
+  await page.reload();
+  await expect(page.locator("a.card").first()).toBeVisible();
+
+  const oldValue = cookies[0]!.value;
+  await page.click("button:has-text('خروج')");
+  await page.waitForURL("**/portal/login");
+  expect((await context.cookies()).filter((c) => c.name === "ilmak_session")).toHaveLength(0);
+  // The old cookie value is dead on the server too, not just removed from the browser.
+  const replay = await fetch("http://127.0.0.1:3000/api/auth/me", { headers: { cookie: `ilmak_session=${oldValue}` } });
+  expect(replay.status).toBe(401);
+});

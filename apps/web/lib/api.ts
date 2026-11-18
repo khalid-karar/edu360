@@ -1,6 +1,18 @@
-/** Thin client for the Ilmak API. The token lives in localStorage; every call is same-origin unless NEXT_PUBLIC_API_URL is set. */
+/**
+ * Thin client for the Ilmak API. Same-origin (the normal case, behind Caddy or the Netlify proxy) the session is an HttpOnly cookie
+ * that scripts cannot read. Only when NEXT_PUBLIC_API_URL points at another origin is a bearer token kept in localStorage, because a
+ * cross-site cookie would need weaker settings.
+ */
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+export const COOKIE_SESSION = BASE === "";
 const KEY = "ilmak.token";
+/** Tells the API this is the web app: it answers a login with a cookie, and cookie-authenticated changes must carry it. */
+const CLIENT = { "x-ilmak-client": "web" };
+
+// Tokens from before the cookie sessions are never needed again: drop them so nothing readable lingers.
+if (COOKIE_SESSION && typeof localStorage !== "undefined") {
+  try { localStorage.removeItem(KEY); } catch { /* private mode */ }
+}
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, public details?: unknown) {
@@ -9,6 +21,7 @@ export class ApiError extends Error {
 }
 
 export const getToken = () => {
+  if (COOKIE_SESSION) return null;
   try {
     return localStorage.getItem(KEY);
   } catch {
@@ -16,6 +29,7 @@ export const getToken = () => {
   }
 };
 export const setToken = (t: string | null) => {
+  if (COOKIE_SESSION) return;
   try {
     if (t) localStorage.setItem(KEY, t);
     else localStorage.removeItem(KEY);
@@ -30,7 +44,7 @@ export async function api<T = any>(method: "GET" | "POST" | "PUT" | "PATCH" | "D
   try {
     res = await fetch(`${BASE}/api${path}`, {
       method,
-      headers: { ...(body !== undefined ? { "content-type": "application/json" } : {}), ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      headers: { ...CLIENT, ...(body !== undefined ? { "content-type": "application/json" } : {}), ...(token ? { authorization: `Bearer ${token}` } : {}) },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
   } catch {
@@ -68,6 +82,7 @@ export function uploadFile(file: File, onProgress?: (fraction: number) => void):
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${BASE}/api/teacher/uploads`);
     xhr.setRequestHeader("content-type", file.type);
+    xhr.setRequestHeader("x-ilmak-client", "web");
     if (token) xhr.setRequestHeader("authorization", `Bearer ${token}`);
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(e.loaded / e.total); };
     xhr.onerror = () => reject(new ApiError(0, "network"));
@@ -84,7 +99,7 @@ export function uploadFile(file: File, onProgress?: (fraction: number) => void):
 /** Opens a staff-only file in a new tab. The request carries the bearer token, so a plain link would not work. */
 export async function openProtectedFile(path: string): Promise<void> {
   const token = getToken();
-  const res = await fetch(`${BASE}/api${path}`, { headers: token ? { authorization: `Bearer ${token}` } : {} }).catch(() => null);
+  const res = await fetch(`${BASE}/api${path}`, { headers: { ...CLIENT, ...(token ? { authorization: `Bearer ${token}` } : {}) } }).catch(() => null);
   if (!res) throw new ApiError(0, "network");
   if (!res.ok) throw new ApiError(res.status, (await res.json().catch(() => null))?.error ?? "server_error");
   const url = URL.createObjectURL(await res.blob());
