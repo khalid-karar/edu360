@@ -32,6 +32,7 @@ export default function Login() {
   const [mock, setMock] = useState<string | null>(null);
   const [role, setRole] = useState<(typeof ROLES)[number]["key"]>("learner");
   const [name, setName] = useState("");
+  const [schoolCode, setSchoolCode] = useState("");
   const [err, setErr] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const phone = normalizePhone(phoneRaw);
@@ -63,7 +64,7 @@ export default function Login() {
         const r = await api<{ token?: string; next: "mfa" | "identity" | "appeal" | null }>("POST", "/auth/otp/verify", {
           phone,
           code,
-          ...(withProfile ? { role, displayName: name.trim() } : {}),
+          ...(withProfile ? { role, displayName: name.trim(), ...(schoolCode.trim() ? { schoolCode: schoolCode.trim().toUpperCase() } : {}) } : {}),
         });
         const u = await signIn(r.token);
         if (r.next === "mfa") return setStep("mfa");
@@ -139,6 +140,11 @@ export default function Login() {
                   </button>
                 ))}
               </div>
+              {role !== "teacher" && (
+                <Field label="رمز المدرسة (اختياري)" hint="إن أعطتك مدرستك رمزاً فاكتبه هنا">
+                  <input className="ltr" value={schoolCode} maxLength={8} onChange={(e) => setSchoolCode(e.target.value)} />
+                </Field>
+              )}
               <p className="muted small">المعلّم وولي الأمر يوثّقان الهوية عبر نفاذ بعد التسجيل.</p>
               <ErrorNote error={err} />
               <button className="btn block" disabled={busy || name.trim().length < 2}>إنشاء الحساب</button>

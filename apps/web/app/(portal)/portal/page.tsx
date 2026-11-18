@@ -14,6 +14,7 @@ export default function Home() {
     if (user.status === "banned") return router.replace("/portal/account");
     if (user.status === "pending") return router.replace("/portal/verify");
     if (isStaffRole(user.role)) return router.replace(user.mfaVerified ? "/portal/staff" : "/portal/login");
+    if (user.role === "school") return router.replace("/portal/school");
     if (user.role !== "teacher") return router.replace("/portal/search");
     api<{ status: string }>("GET", "/teacher/me")
       .then((m) => router.replace(m.status === "approved" || m.status === "conditional" ? "/portal/bookings" : "/portal/apply"))

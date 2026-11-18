@@ -5,6 +5,7 @@ import { verifyTotp } from "../../security/totp.js";
 import { audit } from "../../services/audit.js";
 import { checkOtp, consumeOtp, PHONE_RE, requestOtp } from "../../services/otp.js";
 import { createSession, revokeSession } from "../../services/sessions.js";
+import { schoolIdForCode } from "../../services/schools.js";
 import type { Ctx } from "../context.js";
 import { HttpError, parse } from "../errors.js";
 import { CLIENT_HEADER, clearSessionCookie, setSessionCookie } from "../session-cookie.js";
@@ -20,6 +21,8 @@ const VerifyBody = z
     // Only these three can self-register. Staff accounts are created by a super admin, never here.
     role: z.enum(["learner", "guardian", "teacher"]).optional(),
     displayName: z.string().trim().min(2).max(60).optional(),
+    // A school's invite code, typed at registration. Only learners and guardians can come through a school.
+    schoolCode: z.string().trim().max(20).optional(),
   })
   .strict();
 const MfaBody = z.object({ code: z.string().regex(/^\d{6}$/) }).strict();
@@ -53,16 +56,22 @@ export const authRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
       // The code is still valid: the client asks for the missing fields and calls again.
       throw new HttpError(409, "registration_required", { needs: ["role", "displayName"] });
     }
+    // Checked before the code is spent, so a mistyped school code can be corrected without asking for a new SMS.
+    let schoolId: string | null = null;
+    if (!user && b.schoolCode) {
+      if (b.role !== "learner" && b.role !== "guardian") throw new HttpError(422, "invalid_school_code");
+      schoolId = await schoolIdForCode(ctx.db, b.schoolCode);
+    }
     if (!(await consumeOtp(otpDeps, otpId))) throw new HttpError(401, "invalid_code");
 
     if (!user) {
       const role = b.role!;
       user = await ctx.db.tx(async (tx) => {
         const u = await tx.query<UserRow>(
-          `INSERT INTO users (role, status, mobile, display_name) VALUES ($1,$2,$3,$4)
+          `INSERT INTO users (role, status, mobile, display_name, school_id) VALUES ($1,$2,$3,$4,$5)
            RETURNING id, role, status, display_name`,
           // Adults who only learn can start straight away. Teachers and guardians must verify identity first.
-          [role, role === "learner" ? "active" : "pending", b.phone, b.displayName],
+          [role, role === "learner" ? "active" : "pending", b.phone, b.displayName, schoolId],
         );
         if (role === "teacher") await tx.query("INSERT INTO teacher_profiles (user_id) VALUES ($1)", [u.rows[0]!.id]);
         return u.rows[0]!;

@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { adminAnalytics } from "../../services/analytics.js";
 import { audit } from "../../services/audit.js";
 import type { Ctx } from "../context.js";
 import { HttpError, isUniqueViolation, parse } from "../errors.js";
@@ -50,6 +51,8 @@ const view = (c: CategoryRow) => ({
 export const adminRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
   const { db } = ctx;
   const superAdmin = guard(ctx, { roles: ["super_admin"] });
+
+  app.get("/admin/analytics", { preHandler: superAdmin }, async () => adminAnalytics(db, ctx.now()));
 
   // Public: the whitelist of what can be taught. There is no free-text category.
   app.get("/categories", async () => {

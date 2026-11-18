@@ -217,5 +217,8 @@ const MESSAGES: Record<string, string> = {
   too_many_children: "وصلت للحد الأعلى من الأبناء (6).",
   age_out_of_range: "عمر الطفل بين 4 و17 سنة.",
   not_payable: "لا يمكن دفع هذا الحجز الآن.",
+  invalid_school_code: "رمز المدرسة غير صحيح أو غير معتمد.",
+  school_already_applied: "يوجد طلب سابق لهذه المدرسة.",
+  mobile_in_use: "رقم الجوال مستخدم في حساب آخر.",
 };
 export const errorText = (e: unknown) => (e instanceof ApiError ? (MESSAGES[e.code] ?? `تعذّر تنفيذ الطلب (${e.code})`) : MESSAGES.server_error!);

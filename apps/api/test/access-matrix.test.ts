@@ -1,6 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
-import { makeHarness } from "./helpers/harness.js";
+import { makeHarness, nextPhone } from "./helpers/harness.js";
 import { makeMarket } from "./helpers/market.js";
 
 /**
@@ -11,10 +11,10 @@ import { makeMarket } from "./helpers/market.js";
 let h: Awaited<ReturnType<typeof makeHarness>>;
 const ID = "00000000-0000-4000-8000-000000000000";
 const roles = ["learner", "guardian", "teacher", "vetting_officer", "safety_officer", "finance_officer", "super_admin"] as const;
-const tokens = {} as Record<(typeof roles)[number] | "banned" | "suspended" | "pending", string>;
+const tokens = {} as Record<(typeof roles)[number] | "school" | "banned" | "suspended" | "pending", string>;
 
-// Open on purpose: sign-in, public catalogue, health, payment-provider webhook (checks a signature), dev-only mock pages.
-const PUBLIC = new Set(["GET /api/health", "POST /api/auth/otp/request", "POST /api/auth/otp/verify", "GET /api/categories", "POST /webhooks/moyasar", "POST /api/waitlist"]);
+// Open on purpose: sign-in, public catalogue, health, payment-provider webhook (checks a signature), the schools application form, dev-only mock pages.
+const PUBLIC = new Set(["GET /api/health", "POST /api/auth/otp/request", "POST /api/auth/otp/verify", "GET /api/categories", "POST /webhooks/moyasar", "POST /api/waitlist", "POST /api/schools/apply"]);
 // Logout is skipped: calling it would end the very sessions the matrix is using.
 const isPublic = (key: string) => PUBLIC.has(key) || key.includes("/mock-pay") || key === "POST /api/auth/logout";
 
@@ -25,6 +25,11 @@ beforeAll(async () => {
   tokens.guardian = (await m.verified("guardian")).token;
   tokens.teacher = (await m.teacher()).token;
   for (const r of roles.slice(3)) tokens[r] = (await h.staff(r)).token;
+  // A school's login exists only once staff approve its application, so the account is made directly here.
+  const schoolPhone = nextPhone();
+  await h.db.query("INSERT INTO users (role, status, mobile, display_name) VALUES ('school','active',$1,'مدرسة تجريبية')", [schoolPhone]);
+  const rq = await h.call("POST", "/api/auth/otp/request", { body: { phone: schoolPhone } });
+  tokens.school = (await h.call("POST", "/api/auth/otp/verify", { body: { phone: schoolPhone, code: rq.body.mock_code } })).body.token;
   const banned = await m.verified("learner");
   await h.db.query("UPDATE users SET status = 'banned' WHERE id = $1", [banned.id]);
   tokens.banned = banned.token;
@@ -74,7 +79,7 @@ describe("access matrix", () => {
     for (const r of routes()) {
       const key = `${r.method} ${r.url}`;
       if (isPublic(key) || r.method === "GET") continue;
-      for (const k of ["learner", "teacher", "safety_officer", "finance_officer", "super_admin", "vetting_officer", "guardian"] as const) {
+      for (const k of ["learner", "teacher", "safety_officer", "finance_officer", "super_admin", "vetting_officer", "guardian", "school"] as const) {
         for (const body of bodies) {
           const res = await send(r.method, r.url, tokens[k], body);
           if (res.status >= 500) bad.push(`${key} as ${k} body=${JSON.stringify(body).slice(0, 30)} -> ${res.status}`);

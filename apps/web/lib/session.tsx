@@ -14,7 +14,7 @@ const hint = {
 
 export interface User {
   id: string;
-  role: "learner" | "guardian" | "minor" | "teacher" | "vetting_officer" | "safety_officer" | "finance_officer" | "super_admin";
+  role: "learner" | "guardian" | "minor" | "teacher" | "vetting_officer" | "safety_officer" | "finance_officer" | "super_admin" | "school";
   status: "pending" | "active" | "suspended" | "banned";
   displayName: string;
   mfaVerified: boolean;

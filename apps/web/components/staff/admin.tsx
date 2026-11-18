@@ -5,11 +5,14 @@ import { dateTime, sar } from "../../lib/format";
 import { Tabs, useAct, useLoad } from "./common";
 
 export function AdminConsole() {
-  const [tab, setTab] = useState<"cats" | "audit">("cats");
+  const [tab, setTab] = useState<"stats" | "schools" | "cats" | "audit">("stats");
   return (
     <>
-      <Tabs value={tab} onChange={setTab} items={[{ id: "cats", label: "التخصصات" }, { id: "audit", label: "سجل التدقيق" }]} />
-      {tab === "cats" ? <Categories /> : <Audit />}
+      <Tabs value={tab} onChange={setTab} items={[{ id: "stats", label: "الإحصاءات" }, { id: "schools", label: "المدارس" }, { id: "cats", label: "التخصصات" }, { id: "audit", label: "سجل التدقيق" }]} />
+      {tab === "stats" && <Analytics />}
+      {tab === "schools" && <Schools />}
+      {tab === "cats" && <Categories />}
+      {tab === "audit" && <Audit />}
     </>
   );
 }
@@ -81,6 +84,116 @@ function Audit() {
           </div>
         </>
       )}
+    </>
+  );
+}
+
+
+interface Stats {
+  generatedAt: string;
+  users: { learners: number; guardians: number; children: number; teachers: number; schools: number; newLast7d: number; signupsByDay: { day: string; n: number }[] };
+  teacherPipeline: Record<"draft" | "submitted" | "interview" | "approved" | "rejected" | "suspended", number>;
+  bookings30d: { total: number; byStatus: Record<string, number>; completedByDay: { day: string; n: number }[] };
+  money30d: { grossHalalas: number; commissionHalalas: number; refundedHalalas: number; paidLessons: number; averageLessonHalalas: number; refundRate: number; payoutsOwedHalalas: Record<string, number> };
+  quality30d: { reviews: number; averageRating: number | null };
+  waiting: Record<string, number>;
+  schools: { approved: number; pending: number; families: number };
+}
+
+const WAITING: Record<string, string> = {
+  teacherApplications: "طلبات معلّمين", openReports: "بلاغات مفتوحة", openFlags: "تنبيهات الرسائل", openDisputes: "نزاعات",
+  openAppeals: "استئنافات", pendingSchools: "مدارس بانتظار القرار", suspendedUsers: "حسابات موقوفة", bannedUsers: "حسابات محظورة",
+};
+const PIPE: Record<string, string> = { draft: "مسودة", submitted: "مقدّم", interview: "مقابلة", approved: "معتمد", rejected: "مرفوض", suspended: "موقوف" };
+
+function Stat({ label, value, testId }: { label: string; value: string | number; testId?: string }) {
+  return <div className="card tight stack"><span className="muted small">{label}</span><b style={{ fontSize: 26 }} data-testid={testId}>{value}</b></div>;
+}
+
+function Bars({ rows }: { rows: { day: string; n: number }[] }) {
+  const max = Math.max(1, ...rows.map((r) => r.n));
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 80 }} role="img" aria-label="رسم أعمدة">
+      {rows.map((r) => <div key={r.day} title={`${r.day}: ${r.n}`} style={{ flex: 1, height: `${Math.max(4, (r.n / max) * 100)}%`, background: "var(--accent, #1f6f5c)", borderRadius: 3 }} />)}
+    </div>
+  );
+}
+
+function Analytics() {
+  const q = useLoad<Stats>("/admin/analytics");
+  if (q.err) return <ErrorNote error={q.err} />;
+  if (!q.data) return <Spinner />;
+  const d = q.data;
+  const waiting = Object.entries(d.waiting).filter(([, n]) => n > 0);
+  return (
+    <>
+      <p className="muted small">آخر تحديث: {dateTime(d.generatedAt)}. المبالغ والأعداد لآخر 30 يوماً ما لم يُذكر غير ذلك.</p>
+      <div className="card stack">
+        <h3>بانتظار قرار</h3>
+        {waiting.length === 0 ? <span className="muted">لا شيء معلّق.</span> : <div className="row">{waiting.map(([k, n]) => <span key={k} className="chip">{WAITING[k] ?? k}: <b>{n}</b></span>)}</div>}
+      </div>
+      <div className="grid">
+        <Stat label="متعلّمون" value={d.users.learners} />
+        <Stat label="أولياء أمور" value={d.users.guardians} />
+        <Stat label="معلّمون" value={d.users.teachers} />
+        <Stat label="مدارس" value={d.users.schools} />
+        <Stat label="مسجّلون جدد (7 أيام)" value={d.users.newLast7d} />
+        <Stat label="حجوزات" value={d.bookings30d.total} />
+        <Stat label="إجمالي المدفوعات" value={sar(d.money30d.grossHalalas)} testId="gross" />
+        <Stat label="عمولة المنصة" value={sar(d.money30d.commissionHalalas)} />
+        <Stat label="نسبة الاسترداد" value={`${d.money30d.refundRate}%`} />
+        <Stat label="متوسط الدرس" value={sar(d.money30d.averageLessonHalalas)} />
+        <Stat label="متوسط التقييم" value={d.quality30d.averageRating ?? "—"} />
+        <Stat label="أسر عبر المدارس" value={d.schools.families} />
+      </div>
+      <div className="card stack"><h3>التسجيل اليومي</h3><Bars rows={d.users.signupsByDay} /></div>
+      <div className="card stack"><h3>الدروس المكتملة يومياً</h3><Bars rows={d.bookings30d.completedByDay} /></div>
+      <div className="card stack">
+        <h3>مسار المعلّمين</h3>
+        <div className="row">{Object.entries(d.teacherPipeline).map(([k, n]) => <span key={k} className="chip">{PIPE[k] ?? k}: <b>{n}</b></span>)}</div>
+      </div>
+    </>
+  );
+}
+
+interface School { id: string; name: string; city: string; contactName: string; contactMobile: string; licenseNo: string | null; studentEstimate: number | null; status: "pending" | "approved" | "rejected"; inviteCode: string | null; rejectReason: string | null; families: number }
+const SCHOOL_STATUS = { pending: "بانتظار القرار", approved: "معتمدة", rejected: "مرفوضة" } as const;
+
+function Schools() {
+  const q = useLoad<{ items: School[] }>("/admin/schools");
+  const act = useAct();
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  async function decide(s: School, decision: "approve" | "reject") {
+    if (await act.run("POST", `/admin/schools/${s.id}/decision`, { decision, ...(decision === "reject" ? { reason: reasons[s.id] ?? "" } : {}) })) q.reload();
+  }
+  return (
+    <>
+      <p className="muted small">الاعتماد ينشئ دخول المدرسة على جوال المسؤول ويولّد رمزاً تشاركه مع الأسر. القرار لا يُعاد.</p>
+      <ErrorNote error={q.err} />
+      <ErrorNote error={act.err} />
+      {!q.data && !q.err && <Spinner />}
+      {q.data?.items.length === 0 && <p className="muted">لا توجد طلبات.</p>}
+      <div className="grid">
+        {q.data?.items.map((s) => (
+          <div key={s.id} className="card tight stack" data-testid={`school-${s.id}`}>
+            <div className="row between"><b>{s.name}</b><span className="chip">{SCHOOL_STATUS[s.status]}</span></div>
+            <span className="muted small">{s.city} · {s.contactName} · <span className="ltr">{s.contactMobile}</span></span>
+            {s.licenseNo && <span className="muted small">الترخيص: <span className="ltr">{s.licenseNo}</span></span>}
+            {s.studentEstimate && <span className="muted small">الطلاب: {s.studentEstimate}</span>}
+            {s.status === "approved" && <span>الرمز: <b className="ltr">{s.inviteCode}</b> · الأسر: {s.families}</span>}
+            {s.status === "rejected" && s.rejectReason && <span className="muted small">السبب: {s.rejectReason}</span>}
+            {s.status === "pending" && (
+              <>
+                <input placeholder="سبب الرفض (إن رُفض)" value={reasons[s.id] ?? ""} onChange={(e) => setReasons({ ...reasons, [s.id]: e.target.value })} />
+                <div className="row">
+                  <button className="btn" disabled={act.busy} onClick={() => decide(s, "approve")}>اعتماد</button>
+                  <button className="btn danger" disabled={act.busy || !(reasons[s.id] ?? "").trim()} onClick={() => decide(s, "reject")}>رفض</button>
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
     </>
   );
 }

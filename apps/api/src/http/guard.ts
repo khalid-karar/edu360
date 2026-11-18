@@ -6,7 +6,7 @@ import type { Ctx } from "./context.js";
 
 export const STAFF_ROLES = ["vetting_officer", "safety_officer", "finance_officer", "super_admin"] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
-export type UserRole = "learner" | "guardian" | "minor" | "teacher" | StaffRole;
+export type UserRole = "learner" | "guardian" | "minor" | "teacher" | "school" | StaffRole;
 export type UserStatus = "pending" | "active" | "suspended" | "banned";
 
 export const isStaff = (role: string): role is StaffRole => (STAFF_ROLES as readonly string[]).includes(role);

@@ -202,3 +202,35 @@ test("the session is an HttpOnly cookie that scripts cannot read, and signing ou
   const replay = await fetch("http://127.0.0.1:3000/api/auth/me", { headers: { cookie: `ilmak_session=${oldValue}` } });
   expect(replay.status).toBe(401);
 });
+
+test("a school applies, the admin approves it, the school signs in and sees its code", async ({ page, browser }) => {
+  const noErrors = expectNoPageErrors(page);
+  await page.goto("/portal/school-apply");
+  const inputs = page.locator(".card input");
+  await inputs.nth(0).fill("مدارس الأفق الأهلية");
+  await inputs.nth(1).fill("الرياض");
+  await inputs.nth(2).fill("فهد العتيبي");
+  await inputs.nth(3).fill("0500000701");
+  await page.click("button:has-text('إرسال الطلب')");
+  await expect(page.locator("text=وصلنا طلبك")).toBeVisible();
+
+  const admin = await signInStaff(browser, "+966500000204");
+  await admin.click("button:has-text('المدارس')");
+  await admin.locator("[data-testid^=school-]", { hasText: "مدارس الأفق الأهلية" }).locator("button:has-text('اعتماد')").click();
+  await expect(admin.locator("text=معتمدة")).toBeVisible();
+  const code = (await admin.locator("b.ltr").first().innerText()).trim();
+  expect(code).toMatch(/^[A-Z2-9]{8}$/);
+
+  await signIn(page, "+966500000701");
+  await page.waitForURL("**/portal/school**");
+  await expect(page.locator("[data-testid=school-code]")).toHaveText(code);
+  await expect(page.locator("text=نحمي خصوصية الأسر")).toBeVisible();
+  noErrors();
+});
+
+test("the admin analytics tab shows the platform at a glance", async ({ browser }) => {
+  const admin = await signInStaff(browser, "+966500000204", 1);
+  await expect(admin.locator("text=إجمالي المدفوعات")).toBeVisible();
+  await expect(admin.locator("text=بانتظار قرار")).toBeVisible();
+  await expect(admin.locator("[data-testid=gross]")).not.toBeEmpty();
+});
