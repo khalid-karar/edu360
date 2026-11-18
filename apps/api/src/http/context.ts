@@ -5,6 +5,7 @@ import type { Db } from "../db/db.js";
 import type { MockPaymentProvider } from "../payments/mock.js";
 import type { PaymentProvider } from "../payments/provider.js";
 import type { NafathProvider } from "../providers/nafath.js";
+import type { Hub } from "../realtime/hub.js";
 import type { VideoProvider } from "../video/provider.js";
 import type { SmsProvider } from "../providers/sms.js";
 
@@ -19,9 +20,11 @@ export interface Ctx {
   payments: PaymentProvider;
   video: VideoProvider;
   now: () => Date;
-  limits: { global: number; auth: number };
+  limits: { global: number; auth: number; /** WebSocket connection attempts per address per minute. */ ws?: number };
   /** Shared rate-limit counters (Redis in production). Absent: each limiter counts in its own memory. */
   rateStore?: RateStore | undefined;
+  /** Live-update sockets. Absent: chat still works, by polling. */
+  hub?: Hub | undefined;
   /** Present only when PAYMENTS=mock: lets the dev-only /mock-pay endpoints play the card form. */
   mockPayments?: MockPaymentProvider;
 }

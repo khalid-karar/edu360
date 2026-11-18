@@ -16,6 +16,7 @@ export const inquiryRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
 
   app.post("/teachers/:id/inquiry", { preHandler: payer }, async (req, reply) => {
     const r = await askTeacher(db, ctx.now(), me(req).id, idOf(req), parse(Body, req.body).body);
+    await ctx.hub?.publish(`inquiry:${r.inquiryId}`, ctx.now()); // a teacher who already has the thread open sees the follow-up
     reply.code(201);
     return r;
   });
@@ -26,6 +27,7 @@ export const inquiryRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
   });
   app.post("/inquiries/:id/messages", { preHandler: party }, async (req, reply) => {
     const r = await replyInquiry(db, ctx.now(), me(req).id, idOf(req), parse(Body, req.body).body);
+    await ctx.hub?.publish(`inquiry:${idOf(req)}`, ctx.now());
     reply.code(201);
     return r;
   });

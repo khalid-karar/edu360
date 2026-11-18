@@ -1,3 +1,4 @@
+import { Hub } from "../../src/realtime/hub.js";
 import { MemoryStorage } from "../../src/storage/storage.js";
 import { PGlite } from "@electric-sql/pglite";
 import type { Config } from "../../src/config.js";
@@ -60,7 +61,8 @@ export async function makeHarness() {
   const payments = new MockPaymentProvider();
   const video = new MockVideo();
   const storage = new MemoryStorage();
-  const ctx = { db, storage, config, sms, nafath, payments, video, mockPayments: payments, now: clock.now, limits: { global: 100_000, auth: 100_000 } };
+  const hub = new Hub();
+  const ctx = { db, hub, storage, config, sms, nafath, payments, video, mockPayments: payments, now: clock.now, limits: { global: 100_000, auth: 100_000, ws: 100_000 } };
   const app = buildApp(ctx);
   await app.ready();
 
@@ -134,7 +136,7 @@ export async function makeHarness() {
     return r.rows[0]!.id;
   }
 
-  return { db, app, ctx, storage, upload, video, call, clock, sms, nafath, payments, signup, verifyIdentity, staff, category };
+  return { db, app, ctx, hub, storage, upload, video, call, clock, sms, nafath, payments, signup, verifyIdentity, staff, category };
 }
 
 /** A checksum-valid Saudi IBAN for tests. */

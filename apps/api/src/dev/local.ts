@@ -1,3 +1,4 @@
+import { Hub } from "../realtime/hub.js";
 import { MemoryStorage } from "../storage/storage.js";
 /**
  * Local sandbox: the whole API on an in-memory PostgreSQL (PGlite) with every provider faked and some
@@ -45,7 +46,7 @@ const db = pgliteDb(new PGlite());
 await migrate(db);
 
 const payments = new MockPaymentProvider();
-const ctx = { db, storage: new MemoryStorage(), config, sms: new MockSmsProvider(), nafath: new MockNafathProvider(), payments, video: new MockVideo(), mockPayments: payments, now: () => new Date(), limits: { global: 100_000, auth: 100_000 } };
+const ctx = { db, hub: new Hub(), storage: new MemoryStorage(), config, sms: new MockSmsProvider(), nafath: new MockNafathProvider(), payments, video: new MockVideo(), mockPayments: payments, now: () => new Date(), limits: { global: 100_000, auth: 100_000 } };
 
 // ── demo data ──
 const cats = [

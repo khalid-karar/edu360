@@ -21,6 +21,7 @@ import { dataRightsRoutes } from "./routes/dataRights.js";
 import { inquiryRoutes } from "./routes/inquiries.js";
 import { notificationRoutes } from "./routes/notifications.js";
 import { webhookRoutes } from "./routes/webhooks.js";
+import { attachRealtime } from "../realtime/socket.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -81,5 +82,6 @@ export function buildApp(ctx: Ctx): FastifyInstance {
   app.register(dataRightsRoutes(ctx), { prefix: "/api" });
   app.register(inquiryRoutes(ctx), { prefix: "/api" });
   app.register(devRoutes(ctx), { prefix: "/api" });
+  if (ctx.hub) attachRealtime(app, ctx, ctx.hub);
   return app;
 }

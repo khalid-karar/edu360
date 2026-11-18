@@ -13,6 +13,8 @@ import { processDeletions } from "../services/dataRights.js";
 import { LiveKitVideo, MockVideo } from "../video/provider.js";
 import { LocalDiskStorage } from "../storage/storage.js";
 import { buildApp } from "./app.js";
+import { Hub } from "../realtime/hub.js";
+import { RedisBus } from "../realtime/redis-bus.js";
 import { FallbackRateStore, MemoryRateStore, RedisRateStore } from "./rate-store.js";
 
 const config = loadConfig();
@@ -32,6 +34,10 @@ redis?.on("error", (e) => {
 });
 const rateStore = redis ? new FallbackRateStore(new RedisRateStore(redis), new MemoryRateStore()) : undefined;
 
+// Live chat updates. With Redis the signal reaches sockets held by other API processes too; without it, this process only.
+const hub = new Hub(redis ? new RedisBus(redis) : undefined);
+await hub.start();
+
 const mockPayments = config.payments === "mock" ? new MockPaymentProvider() : undefined;
 const ctx = {
   db,
@@ -44,6 +50,7 @@ const ctx = {
   now: () => new Date(),
   limits: { global: 120, auth: 10 },
   rateStore,
+  hub,
   ...(mockPayments ? { mockPayments } : {}),
 };
 const app = buildApp(ctx);

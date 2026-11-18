@@ -143,6 +143,7 @@ export const authRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
 
   app.post("/auth/logout", { preHandler: guard(ctx, loose) }, async (req, reply) => {
     await revokeSession(ctx.db, me(req).sessionId, ctx.now());
+    ctx.hub?.dropSession(me(req).sessionId);
     clearSessionCookie(reply, ctx.config);
     return { ok: true };
   });

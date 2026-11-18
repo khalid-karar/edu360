@@ -39,6 +39,31 @@ export interface GuardOpts {
   allowBanned?: boolean;
 }
 
+/**
+ * From a session token to a user, applying the same account and role rules to every entry point: HTTP routes and the WebSocket.
+ * Throws the HttpError a route would answer with.
+ */
+export async function authenticateToken(ctx: Ctx, token: string, opts: GuardOpts = {}): Promise<AuthUser> {
+  const s = await findSession(ctx.db, token, ctx.now());
+  if (!s) throw new HttpError(401, "unauthenticated");
+  if (s.status === "banned" && !opts.allowBanned) throw new HttpError(403, "account_banned");
+  const user: AuthUser = {
+    id: s.user_id,
+    role: s.role as UserRole,
+    status: s.status as UserStatus,
+    displayName: s.display_name,
+    sessionId: s.session_id,
+    mfaVerified: s.mfa_verified,
+  };
+  if (isStaff(user.role) && !user.mfaVerified && !opts.allowUnverifiedMfa) throw new HttpError(403, "mfa_required");
+  if (opts.roles && !opts.roles.includes(user.role)) throw new HttpError(403, "forbidden");
+  if (!opts.anyStatus) {
+    if (user.status === "suspended") throw new HttpError(403, "account_suspended");
+    if (user.status === "pending" && !opts.allowPending) throw new HttpError(403, "identity_required");
+  }
+  return user;
+}
+
 /** Route pre-handler: who is calling, are they allowed, and have staff passed MFA. */
 export function guard(ctx: Ctx, opts: GuardOpts = {}) {
   return async (req: FastifyRequest) => {
@@ -52,24 +77,7 @@ export function guard(ctx: Ctx, opts: GuardOpts = {}) {
       }
     }
     if (!token) throw new HttpError(401, "unauthenticated");
-    const s = await findSession(ctx.db, token, ctx.now());
-    if (!s) throw new HttpError(401, "unauthenticated");
-    if (s.status === "banned" && !opts.allowBanned) throw new HttpError(403, "account_banned");
-    const user: AuthUser = {
-      id: s.user_id,
-      role: s.role as UserRole,
-      status: s.status as UserStatus,
-      displayName: s.display_name,
-      sessionId: s.session_id,
-      mfaVerified: s.mfa_verified,
-    };
-    if (isStaff(user.role) && !user.mfaVerified && !opts.allowUnverifiedMfa) throw new HttpError(403, "mfa_required");
-    if (opts.roles && !opts.roles.includes(user.role)) throw new HttpError(403, "forbidden");
-    if (!opts.anyStatus) {
-      if (user.status === "suspended") throw new HttpError(403, "account_suspended");
-      if (user.status === "pending" && !opts.allowPending) throw new HttpError(403, "identity_required");
-    }
-    req.user = user;
+    req.user = await authenticateToken(ctx, token, opts);
   };
 }
 

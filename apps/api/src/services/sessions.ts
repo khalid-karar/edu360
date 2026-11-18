@@ -44,3 +44,13 @@ export async function findSession(db: Db, token: string, now: Date): Promise<Ses
   );
   return r.rows[0];
 }
+
+/** Whether a session is still good: not signed out, not expired, and its owner not banned or suspended. Open sockets re-check this. */
+export async function sessionStillValid(db: Db, sessionId: string, now: Date): Promise<boolean> {
+  const r = await db.query(
+    `SELECT 1 FROM auth_sessions s JOIN users u ON u.id = s.user_id
+      WHERE s.id = $1 AND s.revoked_at IS NULL AND s.expires_at > $2 AND u.status = 'active'`,
+    [sessionId, now],
+  );
+  return (r.rowCount ?? 0) > 0;
+}

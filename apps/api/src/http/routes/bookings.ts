@@ -184,6 +184,7 @@ export const bookingRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     const u = me(req);
     const { body } = parse(z.object({ body: z.string().trim().min(1).max(1000) }).strict(), req.body);
     const m = await postMessage(db, ctx.now(), u.id, idOf(req), body);
+    await ctx.hub?.publish(`booking:${idOf(req)}`, ctx.now());
     reply.code(201);
     return m;
   });

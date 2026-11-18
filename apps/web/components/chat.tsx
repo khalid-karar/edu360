@@ -2,10 +2,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api, errorText } from "../lib/api";
 import { timeLabel } from "../lib/format";
+import { realtime, topicFor } from "../lib/realtime";
 
 interface Msg { id: string; mine: boolean; body: string; createdAt: string }
 
-/** Per-booking conversation. Polls every few seconds; contact details are refused by the server and explained here. */
+/**
+ * Per-booking (or per-question) conversation. New messages arrive by WebSocket signal; if the socket is down it polls every 5 s instead,
+ * and while it is up it still checks once a minute as a safety net. Contact details are refused by the server and explained here.
+ */
 export function Chat({ bookingId, open, base }: { bookingId?: string; open: boolean; base?: string }) {
   const root = base ?? `/bookings/${bookingId}`;
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -30,11 +34,19 @@ export function Chat({ bookingId, open, base }: { bookingId?: string; open: bool
     }
   }, [root]);
 
+  const [live, setLive] = useState(false);
+  useEffect(() => {
+    const topic = topicFor(root);
+    if (!topic) return;
+    const offStatus = realtime.onStatus(setLive);
+    const off = realtime.subscribe(topic, pull); // pulls on every signal and after every (re)connect
+    return () => { off(); offStatus(); };
+  }, [root, pull]);
   useEffect(() => {
     pull();
-    const t = setInterval(pull, 5000);
+    const t = setInterval(pull, live ? 60_000 : 5000);
     return () => clearInterval(t);
-  }, [pull]);
+  }, [pull, live]);
   useEffect(() => {
     box.current?.scrollTo({ top: box.current.scrollHeight });
   }, [msgs]);

@@ -91,6 +91,8 @@ test("a banned teacher appeals; the issuer cannot decide it; a second officer re
 });
 
 test("a learner asks a teacher a question before booking and the teacher answers", async ({ page, browser }) => {
+  const sockets: string[] = [];
+  page.on("websocket", (ws) => sockets.push(ws.url()));
   await signIn(page, "+966500000301"); // Waleed
   await page.waitForURL("**/portal/search");
   await page.click("a.card:has-text('محمد القحطاني')");
@@ -116,7 +118,9 @@ test("a learner asks a teacher a question before booking and the teacher answers
   await teacher.click("button:has-text('إرسال')");
   await expect(teacher.locator(".msg.mine", { hasText: "السادسة" })).toBeVisible();
 
-  await expect(page.locator(".msg:not(.mine)", { hasText: "السادسة" })).toBeVisible({ timeout: 20_000 }); // the learner's chat polls every 5 s
+  // Pushed over the WebSocket: well inside the 5 s the polling fallback would take.
+  await expect(page.locator(".msg:not(.mine)", { hasText: "السادسة" })).toBeVisible({ timeout: 3_500 });
+  expect(sockets.some((u) => u.endsWith("/api/ws"))).toBe(true);
   await expect(page.locator("a:has-text('اطّلع على المواعيد واحجز')")).toBeVisible();
 });
 
