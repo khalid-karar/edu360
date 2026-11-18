@@ -9,7 +9,7 @@ import type { PaymentProvider } from "../payments/provider.js";
 import type { NafathProvider } from "../providers/nafath.js";
 import type { Hub } from "../realtime/hub.js";
 import type { VideoProvider } from "../video/provider.js";
-import type { SmsProvider } from "../providers/sms.js";
+import type { EmailProvider } from "../providers/email.js";
 
 /** Everything a route may touch. Tests pass fakes and a controllable clock. */
 export interface Ctx {
@@ -22,7 +22,7 @@ export interface Ctx {
   /** Antivirus check on uploads. Absent: files are stored after the type and size checks only. */
   scanner?: Scanner | undefined;
   config: Config;
-  sms: SmsProvider;
+  mail: EmailProvider;
   nafath: NafathProvider;
   /** Moyasar in production, the in-memory fake in tests. */
   payments: PaymentProvider;

@@ -1,18 +1,18 @@
 import { expect, test } from "@playwright/test";
 import { api, apiLogin, expectNoPageErrors, signIn, signInStaff, totp } from "./helpers";
 
-// Seeded accounts (apps/api/src/dev/local.ts): learner Hind +966500000302 and teacher Noura +966500000102 share a lesson from 3 hours ago.
+// Seeded accounts (apps/api/src/dev/local.ts): learner Hind 500000302@ilmak.test and teacher Noura 500000102@ilmak.test share a lesson from 3 hours ago.
 
 test("a learner signs in and finds teachers", async ({ page }) => {
   const clean = expectNoPageErrors(page);
-  await signIn(page, "+966500000302");
+  await signIn(page, "500000302@ilmak.test");
   await page.waitForURL("**/portal/search");
   await expect(page.locator("a.card").first()).toBeVisible();
   clean();
 });
 
 test("data rights: download, request deletion, cancel", async ({ page }) => {
-  await signIn(page, "+966500000302");
+  await signIn(page, "500000302@ilmak.test");
   await page.waitForURL("**/portal/search");
   await page.goto("/portal/account");
   const [download] = await Promise.all([page.waitForEvent("download"), page.click("button:has-text('تنزيل نسخة')")]);
@@ -26,7 +26,7 @@ test("data rights: download, request deletion, cancel", async ({ page }) => {
 });
 
 test("first-lesson guarantee: the learner is refunded and the teacher sees the platform credit", async ({ page, browser }) => {
-  await signIn(page, "+966500000302");
+  await signIn(page, "500000302@ilmak.test");
   await page.waitForURL("**/portal/search");
   await page.goto("/portal/bookings");
   await page.click("button:has-text('السابقة')");
@@ -39,7 +39,7 @@ test("first-lesson guarantee: the learner is refunded and the teacher sees the p
   await expect(page.locator("text=ضمان الدرس الأول")).toHaveCount(0);
 
   const teacher = await (await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "ar-SA" })).newPage();
-  await signIn(teacher, "+966500000102");
+  await signIn(teacher, "500000102@ilmak.test");
   await teacher.waitForURL("**/portal/bookings");
   await teacher.click("button:has-text('السابقة')");
   await teacher.click("a.card:has-text('هند')");
@@ -47,7 +47,7 @@ test("first-lesson guarantee: the learner is refunded and the teacher sees the p
 });
 
 test("vetting officer approves a teacher application", async ({ browser }) => {
-  const p = await signInStaff(browser, "+966500000201");
+  const p = await signInStaff(browser, "500000201@ilmak.test");
   await p.click("text=سارة الحربي");
   await p.click("button:has-text('قبول')");
   await expect(p.locator("text=مقبول")).toBeVisible();
@@ -58,13 +58,13 @@ test("vetting officer approves a teacher application", async ({ browser }) => {
 });
 
 test("a banned teacher appeals; the issuer cannot decide it; a second officer reverses it", async ({ page, browser }) => {
-  const safety = await apiLogin("+966500000202");
-  await api("POST", "/auth/mfa/verify", { code: totp("+966500000202") }, safety);
-  const teacherToken = await apiLogin("+966500000103");
+  const safety = await apiLogin("500000202@ilmak.test");
+  await api("POST", "/auth/mfa/verify", { code: totp("500000202@ilmak.test") }, safety);
+  const teacherToken = await apiLogin("500000103@ilmak.test");
   const teacherId = (await api("GET", "/auth/me", undefined, teacherToken)).id;
   await api("POST", `/admin/safety/users/${teacherId}/strike`, { reason: "اشتباه بمخالفة جسيمة يحتاج مراجعة", zeroTolerance: true }, safety);
 
-  await signIn(page, "+966500000103");
+  await signIn(page, "500000103@ilmak.test");
   await page.waitForURL("**/portal/account");
   await expect(page.locator("text=حسابك محظور")).toBeVisible();
   await page.click("button:has-text('تقديم تظلّم')");
@@ -72,12 +72,12 @@ test("a banned teacher appeals; the issuer cannot decide it; a second officer re
   await page.click("button:has-text('إرسال التظلّم')");
   await expect(page.locator("text=التظلّم قيد المراجعة")).toBeVisible();
 
-  const issuer = await signInStaff(browser, "+966500000202", 1);
+  const issuer = await signInStaff(browser, "500000202@ilmak.test", 1);
   await issuer.click("button:has-text('التظلّمات')");
   await issuer.click("button.card");
   await expect(issuer.locator("text=أنت من أصدر هذه المخالفة")).toBeVisible();
 
-  const other = await signInStaff(browser, "+966500000206");
+  const other = await signInStaff(browser, "500000206@ilmak.test");
   await other.click("button:has-text('التظلّمات')");
   await other.click("button.card");
   await other.fill("textarea", "راجعنا المحادثات وتبيّن أن الحادثة سوء فهم.");
@@ -93,7 +93,7 @@ test("a banned teacher appeals; the issuer cannot decide it; a second officer re
 test("a learner asks a teacher a question before booking and the teacher answers", async ({ page, browser }) => {
   const sockets: string[] = [];
   page.on("websocket", (ws) => sockets.push(ws.url()));
-  await signIn(page, "+966500000301"); // Waleed
+  await signIn(page, "500000301@ilmak.test"); // Waleed
   await page.waitForURL("**/portal/search");
   await page.click("a.card:has-text('محمد القحطاني')");
   await expect(page.locator("text=معلّم مؤسس").first()).toBeVisible(); // a badge on the profile
@@ -109,7 +109,7 @@ test("a learner asks a teacher a question before booking and the teacher answers
   await expect(page.locator(".note.err")).toContainText("لا يمكن إرسال أرقام التواصل");
 
   const teacher = await (await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "ar-SA" })).newPage();
-  await signIn(teacher, "+966500000101");
+  await signIn(teacher, "500000101@ilmak.test");
   await teacher.locator("a:has-text('الأسئلة'):visible").first().click();
   await teacher.click("a.card:has-text('وليد')");
   await expect(teacher.locator(".msg", { hasText: "سن السابعة" })).toBeVisible();
@@ -136,7 +136,7 @@ test("pages load under the security headers without CSP violations or console er
     await page.goto(path);
     await page.waitForLoadState("networkidle");
   }
-  await signIn(page, "+966500000301");
+  await signIn(page, "500000301@ilmak.test");
   await page.waitForURL("**/portal/search");
   await page.goto("/portal/account");
   await expect(page.locator("text=بياناتي وخصوصيتي")).toBeVisible();
@@ -145,7 +145,7 @@ test("pages load under the security headers without CSP violations or console er
 
 test("a new teacher uploads an intro video and a certificate, and bad files are refused before sending", async ({ page }) => {
   const clean = expectNoPageErrors(page);
-  await signIn(page, "+966500000106");
+  await signIn(page, "500000106@ilmak.test");
   await page.goto("/portal/apply");
   await expect(page.locator("text=ينقصك")).toBeVisible();
 
@@ -179,7 +179,7 @@ test("a new teacher uploads an intro video and a certificate, and bad files are 
 });
 
 test("the session is an HttpOnly cookie that scripts cannot read, and signing out ends it", async ({ page, context }) => {
-  await signIn(page, "+966500000301");
+  await signIn(page, "500000301@ilmak.test");
   await page.waitForURL("**/portal/search");
   const cookies = (await context.cookies()).filter((c) => c.name === "ilmak_session");
   expect(cookies).toHaveLength(1);
@@ -214,14 +214,14 @@ test("a school applies, the admin approves it, the school signs in and sees its 
   await page.click("button:has-text('إرسال الطلب')");
   await expect(page.locator("text=وصلنا طلبك")).toBeVisible();
 
-  const admin = await signInStaff(browser, "+966500000204");
+  const admin = await signInStaff(browser, "500000204@ilmak.test");
   await admin.click("button:has-text('المدارس')");
   await admin.locator("[data-testid^=school-]", { hasText: "مدارس الأفق الأهلية" }).locator("button:has-text('اعتماد')").click();
   await expect(admin.locator("text=معتمدة")).toBeVisible();
   const code = (await admin.locator("b.ltr").first().innerText()).trim();
   expect(code).toMatch(/^[A-Z2-9]{8}$/);
 
-  await signIn(page, "+966500000701");
+  await signIn(page, "500000701@ilmak.test");
   await page.waitForURL("**/portal/school**");
   await expect(page.locator("[data-testid=school-code]")).toHaveText(code);
   await expect(page.locator("text=نحمي خصوصية الأسر")).toBeVisible();
@@ -229,14 +229,14 @@ test("a school applies, the admin approves it, the school signs in and sees its 
 });
 
 test("the admin analytics tab shows the platform at a glance", async ({ browser }) => {
-  const admin = await signInStaff(browser, "+966500000204", 1);
+  const admin = await signInStaff(browser, "500000204@ilmak.test", 1);
   await expect(admin.locator("text=إجمالي المدفوعات")).toBeVisible();
   await expect(admin.locator("text=بانتظار قرار")).toBeVisible();
   await expect(admin.locator("[data-testid=gross]")).not.toBeEmpty();
 });
 
 test("a teacher reads the month statement and downloads it as CSV; finance exports payments", async ({ page, browser }) => {
-  await signIn(page, "+966500000101");
+  await signIn(page, "500000101@ilmak.test");
   await page.goto("/portal/earnings");
   // The seeded lessons are a few days old, so pick the month of five days ago whatever today's date is.
   const month = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Riyadh", year: "numeric", month: "2-digit" }).format(new Date(Date.now() - 5 * 86_400_000)).slice(0, 7);
@@ -247,7 +247,7 @@ test("a teacher reads the month statement and downloads it as CSV; finance expor
   const [dl] = await Promise.all([page.waitForEvent("download"), page.click("button:has-text('تنزيل CSV')")]);
   expect(dl.suggestedFilename()).toBe(`ilmak-statement-${month}.csv`);
 
-  const fin = await signInStaff(browser, "+966500000203");
+  const fin = await signInStaff(browser, "500000203@ilmak.test");
   await fin.click("button:has-text('تصدير')");
   const [dl2] = await Promise.all([fin.waitForEvent("download"), fin.click("button:has-text('تنزيل CSV')")]);
   expect(dl2.suggestedFilename()).toMatch(/^ilmak-finance-\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}\.csv$/);
@@ -255,13 +255,13 @@ test("a teacher reads the month statement and downloads it as CSV; finance expor
 
 test("a teacher asks for a missing subject and the admin adds it", async ({ page, browser }) => {
   const noErrors = expectNoPageErrors(page);
-  await signIn(page, "+966500000102");
+  await signIn(page, "500000102@ilmak.test");
   await page.goto("/portal/apply");
   await page.fill("input[placeholder='مثال: الكيمياء']", "الكيمياء الحيوية");
   await page.click("button:has-text('إرسال الطلب')");
   await expect(page.locator("text=وصل طلبك")).toBeVisible();
 
-  const admin = await signInStaff(browser, "+966500000207");
+  const admin = await signInStaff(browser, "500000207@ilmak.test");
   await admin.click("button:has-text('التخصصات')");
   const card = admin.locator("[data-testid^=catreq-]", { hasText: "الكيمياء الحيوية" });
   await card.locator("input.ltr").first().fill("Biochemistry");
@@ -276,7 +276,7 @@ test("a teacher asks for a missing subject and the admin adds it", async ({ page
 
 test("the admin sets the commission and a discount code, and a learner uses it at booking", async ({ page, browser }) => {
   const noErrors = expectNoPageErrors(page);
-  const admin = await signInStaff(browser, "+966500000207", 1);
+  const admin = await signInStaff(browser, "500000207@ilmak.test", 1);
   await admin.click("button:has-text('الأسعار والخصومات')");
   await expect(admin.locator("[data-testid=founding-taken]")).toContainText("من 100");
   // 12 % for ordinary teachers in the first lessons, then save
@@ -291,7 +291,7 @@ test("the admin sets the commission and a discount code, and a learner uses it a
   await admin.click("button:has-text('إنشاء الكود')");
   await expect(admin.locator("[data-testid='code-YAUM-TASEES']")).toBeVisible();
 
-  await signIn(page, "+966500000303");
+  await signIn(page, "500000303@ilmak.test");
   await page.waitForURL("**/portal/search");
   await page.locator("a.card").first().click();
   await page.locator("button.slot").first().click();

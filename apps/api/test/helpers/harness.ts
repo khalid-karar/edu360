@@ -10,7 +10,7 @@ import { buildApp } from "../../src/http/app.js";
 import { MockPaymentProvider } from "../../src/payments/mock.js";
 import { MockNafathProvider } from "../../src/providers/nafath.js";
 import { MockVideo } from "../../src/video/provider.js";
-import { MockSmsProvider } from "../../src/providers/sms.js";
+import { MockEmailProvider } from "../../src/providers/email.js";
 import { encrypt } from "../../src/security/crypto.js";
 import { newTotpSecret, totpAt } from "../../src/security/totp.js";
 
@@ -46,8 +46,8 @@ export interface Res {
 export const MP4 = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from("ftypmp42"), Buffer.alloc(32)]);
 export const WEBM = Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(32)]);
 
-let phoneSeq = 0;
-export const nextPhone = () => `+9665${String(10_000_000 + ++phoneSeq)}`;
+let emailSeq = 0;
+export const nextEmail = () => `user${++emailSeq}@ilmak.test`;
 
 export async function makeHarness(opts: { metricsToken?: string; defaultRates?: boolean } = {}) {
   const pg = new PGlite();
@@ -64,13 +64,13 @@ export async function makeHarness(opts: { metricsToken?: string; defaultRates?: 
     now: () => new Date(t),
     advance: (ms: number) => void (t += ms),
   };
-  const sms = new MockSmsProvider();
+  const mail = new MockEmailProvider();
   const nafath = new MockNafathProvider(() => t);
   const payments = new MockPaymentProvider();
   const video = new MockVideo();
   const storage = new MemoryStorage();
   const hub = new Hub();
-  const ctx = { db, hub, storage, config: opts.metricsToken ? { ...config, metricsToken: opts.metricsToken } : config, ...(opts.metricsToken ? { metrics: new Metrics() } : {}), sms, nafath, payments, video, mockPayments: payments, now: clock.now, limits: { global: 100_000, auth: 100_000, ws: 100_000 } };
+  const ctx = { db, hub, storage, config: opts.metricsToken ? { ...config, metricsToken: opts.metricsToken } : config, ...(opts.metricsToken ? { metrics: new Metrics() } : {}), mail, nafath, payments, video, mockPayments: payments, now: clock.now, limits: { global: 100_000, auth: 100_000, ws: 100_000 } };
   const app = buildApp(ctx);
   await app.ready();
 
@@ -87,12 +87,12 @@ export async function makeHarness(opts: { metricsToken?: string; defaultRates?: 
 
   /** Full self-registration through the real endpoints. */
   async function signup(role: "learner" | "guardian" | "teacher", name = "مستخدم تجريبي") {
-    const phone = nextPhone();
-    clock.advance(11 * 60_000); // stay clear of the per-phone code limit
-    const rq = await call("POST", "/api/auth/otp/request", { body: { phone } });
-    const v = await call("POST", "/api/auth/otp/verify", { body: { phone, code: rq.body.mock_code, role, displayName: name } });
+    const email = nextEmail();
+    clock.advance(11 * 60_000); // stay clear of the per-email code limit
+    const rq = await call("POST", "/api/auth/otp/request", { body: { email } });
+    const v = await call("POST", "/api/auth/otp/verify", { body: { email, code: rq.body.mock_code, role, displayName: name } });
     if (v.status !== 200) throw new Error(`signup failed: ${JSON.stringify(v.body)}`);
-    return { phone, token: v.body.token as string, id: v.body.user.id as string };
+    return { email, token: v.body.token as string, id: v.body.user.id as string };
   }
 
   /** Uploads a file the way the browser does: raw bytes with a Content-Type. Defaults to a tiny PDF. */
@@ -117,16 +117,16 @@ export async function makeHarness(opts: { metricsToken?: string; defaultRates?: 
 
   /** Creates a staff user directly (as the CLI does) and returns a signed-in, MFA-verified session. */
   async function staff(role: string) {
-    const phone = nextPhone();
+    const email = nextEmail();
     const secret = newTotpSecret();
-    const u = await db.query<{ id: string }>("INSERT INTO users (role, status, mobile, display_name) VALUES ($1,'active',$2,$3) RETURNING id", [role, phone, `staff ${role}`]);
+    const u = await db.query<{ id: string }>("INSERT INTO users (role, status, email, display_name) VALUES ($1,'active',$2,$3) RETURNING id", [role, email, `staff ${role}`]);
     const id = u.rows[0]!.id;
     await db.query("INSERT INTO staff_mfa (user_id, secret_enc) VALUES ($1,$2)", [id, encrypt(config.mfaEncKey, secret.toString("hex"))]);
     const code = () => totpAt(secret, Math.floor(clock.now().getTime() / 30_000));
     async function login(verifyMfa = true, advance = true) {
       if (advance) clock.advance(11 * 60_000);
-      const rq = await call("POST", "/api/auth/otp/request", { body: { phone } });
-      const v = await call("POST", "/api/auth/otp/verify", { body: { phone, code: rq.body.mock_code } });
+      const rq = await call("POST", "/api/auth/otp/request", { body: { email } });
+      const v = await call("POST", "/api/auth/otp/verify", { body: { email, code: rq.body.mock_code } });
       if (verifyMfa) {
         clock.advance(30_000); // a fresh TOTP step each login
         const m = await call("POST", "/api/auth/mfa/verify", { token: v.body.token, body: { code: code() } });
@@ -134,7 +134,7 @@ export async function makeHarness(opts: { metricsToken?: string; defaultRates?: 
       }
       return { token: v.body.token as string, res: v };
     }
-    return { id, phone, secret, code, login, ...(await login()) };
+    return { id, email, secret, code, login, ...(await login()) };
   }
 
   async function category(slug = "quran", min = 5000, max = 20000) {
@@ -145,7 +145,7 @@ export async function makeHarness(opts: { metricsToken?: string; defaultRates?: 
     return r.rows[0]!.id;
   }
 
-  return { db, app, ctx, hub, storage, upload, video, call, clock, sms, nafath, payments, signup, verifyIdentity, staff, category };
+  return { db, app, ctx, hub, storage, upload, video, call, clock, mail, nafath, payments, signup, verifyIdentity, staff, category };
 }
 
 /** A checksum-valid Saudi IBAN for tests. */

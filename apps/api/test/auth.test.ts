@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { makeHarness, nextPhone } from "./helpers/harness.js";
+import { makeHarness, nextEmail } from "./helpers/harness.js";
 
 let h: Awaited<ReturnType<typeof makeHarness>>;
 beforeAll(async () => {
@@ -15,64 +15,82 @@ describe("database", () => {
 });
 
 describe("one-time codes", () => {
-  it("echoes the code in mock mode, stores only a hash, and sends the SMS", async () => {
-    const phone = nextPhone();
-    const r = await h.call("POST", "/api/auth/otp/request", { body: { phone } });
+  it("echoes the code in mock mode, stores only a hash, and emails it", async () => {
+    const email = nextEmail();
+    const r = await h.call("POST", "/api/auth/otp/request", { body: { email } });
     expect(r.status).toBe(200);
     expect(r.body.mock_code).toMatch(/^\d{6}$/);
-    const row = await h.db.query<{ code_hash: string }>("SELECT code_hash FROM otp_codes WHERE phone = $1", [phone]);
+    const row = await h.db.query<{ code_hash: string }>("SELECT code_hash FROM otp_codes WHERE contact = $1", [email]);
     expect(row.rows[0]!.code_hash).not.toContain(r.body.mock_code);
-    expect(h.sms.outbox.at(-1)?.to).toBe(phone);
+    expect(h.mail.outbox.at(-1)?.to).toBe(email);
   });
 
-  it("rejects malformed phones and unknown fields", async () => {
-    expect((await h.call("POST", "/api/auth/otp/request", { body: { phone: "0512345678" } })).status).toBe(400);
-    expect((await h.call("POST", "/api/auth/otp/request", { body: { phone: nextPhone(), admin: true } })).status).toBe(400);
+  it("treats upper and lower case as the same address and trims spaces", async () => {
+    const email = nextEmail();
+    const rq = await h.call("POST", "/api/auth/otp/request", { body: { email: `  ${email.toUpperCase()} ` } });
+    expect(rq.status).toBe(200);
+    expect(h.mail.outbox.at(-1)?.to).toBe(email);
+    const v = await h.call("POST", "/api/auth/otp/verify", { body: { email, code: rq.body.mock_code, role: "learner", displayName: "اسم" } });
+    expect(v.status).toBe(200);
+    const again = await h.call("POST", "/api/auth/otp/request", { body: { email: email.toUpperCase() } });
+    const v2 = await h.call("POST", "/api/auth/otp/verify", { body: { email: email.toUpperCase(), code: again.body.mock_code } });
+    expect(v2.body.user.id).toBe(v.body.user.id);
   });
 
-  it("caps requests per phone", async () => {
-    const phone = nextPhone();
-    for (let i = 0; i < 3; i++) expect((await h.call("POST", "/api/auth/otp/request", { body: { phone } })).status).toBe(200);
-    const r = await h.call("POST", "/api/auth/otp/request", { body: { phone } });
+  it("refuses things that are not email addresses", async () => {
+    for (const bad of ["", "a@b", "no at sign.com", "two@@x.com", "a b@x.com", "<x>@y.com", "x".repeat(260) + "@y.com"]) {
+      expect((await h.call("POST", "/api/auth/otp/request", { body: { email: bad } })).status, bad.slice(0, 20)).toBe(400);
+    }
+  });
+
+  it("rejects malformed addresses and unknown fields", async () => {
+    expect((await h.call("POST", "/api/auth/otp/request", { body: { email: "0512345678" } })).status).toBe(400);
+    expect((await h.call("POST", "/api/auth/otp/request", { body: { email: nextEmail(), admin: true } })).status).toBe(400);
+  });
+
+  it("caps requests per email", async () => {
+    const email = nextEmail();
+    for (let i = 0; i < 3; i++) expect((await h.call("POST", "/api/auth/otp/request", { body: { email } })).status).toBe(200);
+    const r = await h.call("POST", "/api/auth/otp/request", { body: { email } });
     expect(r.status).toBe(429);
     h.clock.advance(11 * 60_000);
-    expect((await h.call("POST", "/api/auth/otp/request", { body: { phone } })).status).toBe(200);
+    expect((await h.call("POST", "/api/auth/otp/request", { body: { email } })).status).toBe(200);
   });
 
   it("locks after 5 wrong guesses, even if the right code follows", async () => {
-    const phone = nextPhone();
-    const { body } = await h.call("POST", "/api/auth/otp/request", { body: { phone } });
+    const email = nextEmail();
+    const { body } = await h.call("POST", "/api/auth/otp/request", { body: { email } });
     const wrong = body.mock_code === "000000" ? "111111" : "000000";
     for (let i = 0; i < 5; i++) {
-      const r = await h.call("POST", "/api/auth/otp/verify", { body: { phone, code: wrong, role: "learner", displayName: "اسم" } });
+      const r = await h.call("POST", "/api/auth/otp/verify", { body: { email, code: wrong, role: "learner", displayName: "اسم" } });
       expect(r.status).toBe(401);
     }
-    const late = await h.call("POST", "/api/auth/otp/verify", { body: { phone, code: body.mock_code, role: "learner", displayName: "اسم" } });
+    const late = await h.call("POST", "/api/auth/otp/verify", { body: { email, code: body.mock_code, role: "learner", displayName: "اسم" } });
     expect(late.status).toBe(401);
   });
 
   it("expires after 5 minutes and cannot be used twice", async () => {
-    const phone = nextPhone();
-    const a = await h.call("POST", "/api/auth/otp/request", { body: { phone } });
+    const email = nextEmail();
+    const a = await h.call("POST", "/api/auth/otp/request", { body: { email } });
     h.clock.advance(5 * 60_000 + 1000);
-    expect((await h.call("POST", "/api/auth/otp/verify", { body: { phone, code: a.body.mock_code, role: "learner", displayName: "اسم" } })).status).toBe(401);
+    expect((await h.call("POST", "/api/auth/otp/verify", { body: { email, code: a.body.mock_code, role: "learner", displayName: "اسم" } })).status).toBe(401);
 
-    const b = await h.call("POST", "/api/auth/otp/request", { body: { phone } });
-    const ok = await h.call("POST", "/api/auth/otp/verify", { body: { phone, code: b.body.mock_code, role: "learner", displayName: "اسم" } });
+    const b = await h.call("POST", "/api/auth/otp/request", { body: { email } });
+    const ok = await h.call("POST", "/api/auth/otp/verify", { body: { email, code: b.body.mock_code, role: "learner", displayName: "اسم" } });
     expect(ok.status).toBe(200);
-    const again = await h.call("POST", "/api/auth/otp/verify", { body: { phone, code: b.body.mock_code } });
+    const again = await h.call("POST", "/api/auth/otp/verify", { body: { email, code: b.body.mock_code } });
     expect(again.status).toBe(401);
   });
 });
 
 describe("registration and sessions", () => {
   it("asks a new number for role and name without spending the code", async () => {
-    const phone = nextPhone();
-    const { body } = await h.call("POST", "/api/auth/otp/request", { body: { phone } });
-    const first = await h.call("POST", "/api/auth/otp/verify", { body: { phone, code: body.mock_code } });
+    const email = nextEmail();
+    const { body } = await h.call("POST", "/api/auth/otp/request", { body: { email } });
+    const first = await h.call("POST", "/api/auth/otp/verify", { body: { email, code: body.mock_code } });
     expect(first.status).toBe(409);
     expect(first.body.error).toBe("registration_required");
-    const second = await h.call("POST", "/api/auth/otp/verify", { body: { phone, code: body.mock_code, role: "guardian", displayName: "ولي أمر" } });
+    const second = await h.call("POST", "/api/auth/otp/verify", { body: { email, code: body.mock_code, role: "guardian", displayName: "ولي أمر" } });
     expect(second.status).toBe(200);
     expect(second.body.user).toMatchObject({ role: "guardian", status: "pending" });
     expect(second.body.next).toBe("identity");
@@ -80,17 +98,17 @@ describe("registration and sessions", () => {
 
   it("does not reveal whether a number has an account without a valid code", async () => {
     const known = await h.signup("learner");
-    const r = await h.call("POST", "/api/auth/otp/verify", { body: { phone: known.phone, code: "123456" } });
-    const unknown = await h.call("POST", "/api/auth/otp/verify", { body: { phone: nextPhone(), code: "123456" } });
+    const r = await h.call("POST", "/api/auth/otp/verify", { body: { email: known.email, code: "123456" } });
+    const unknown = await h.call("POST", "/api/auth/otp/verify", { body: { email: nextEmail(), code: "123456" } });
     expect(r.status).toBe(401);
     expect(unknown.status).toBe(401);
   });
 
   it("never lets anyone self-register as staff, minor or any unlisted role", async () => {
     for (const role of ["super_admin", "vetting_officer", "finance_officer", "safety_officer", "minor"]) {
-      const phone = nextPhone();
-      const { body } = await h.call("POST", "/api/auth/otp/request", { body: { phone } });
-      const r = await h.call("POST", "/api/auth/otp/verify", { body: { phone, code: body.mock_code, role, displayName: "مهاجم" } });
+      const email = nextEmail();
+      const { body } = await h.call("POST", "/api/auth/otp/request", { body: { email } });
+      const r = await h.call("POST", "/api/auth/otp/verify", { body: { email, code: body.mock_code, role, displayName: "مهاجم" } });
       expect(r.status).toBe(400);
     }
   });
@@ -130,8 +148,8 @@ describe("registration and sessions", () => {
     expect((await h.call("GET", "/api/auth/me", { token: u.token })).body.status).toBe("banned");
     expect((await h.call("GET", "/api/teachers", { token: u.token })).body.error).toBe("account_banned");
     h.clock.advance(11 * 60_000);
-    const rq = await h.call("POST", "/api/auth/otp/request", { body: { phone: u.phone } });
-    const v = await h.call("POST", "/api/auth/otp/verify", { body: { phone: u.phone, code: rq.body.mock_code } });
+    const rq = await h.call("POST", "/api/auth/otp/request", { body: { email: u.email } });
+    const v = await h.call("POST", "/api/auth/otp/verify", { body: { email: u.email, code: rq.body.mock_code } });
     expect(v.status).toBe(200);
     expect(v.body.next).toBe("appeal");
     expect((await h.call("GET", "/api/bookings", { token: v.body.token })).body.error).toBe("account_banned");
@@ -169,10 +187,10 @@ describe("staff multi-factor", () => {
   });
 
   it("will not let a staff member without an authenticator in at all", async () => {
-    const phone = nextPhone();
-    await h.db.query("INSERT INTO users (role, status, mobile, display_name) VALUES ('super_admin','active',$1,'x')", [phone]);
-    const rq = await h.call("POST", "/api/auth/otp/request", { body: { phone } });
-    const v = await h.call("POST", "/api/auth/otp/verify", { body: { phone, code: rq.body.mock_code } });
+    const email = nextEmail();
+    await h.db.query("INSERT INTO users (role, status, email, display_name) VALUES ('super_admin','active',$1,'x')", [email]);
+    const rq = await h.call("POST", "/api/auth/otp/request", { body: { email } });
+    const v = await h.call("POST", "/api/auth/otp/verify", { body: { email, code: rq.body.mock_code } });
     expect(v.status).toBe(403);
     expect(v.body.error).toBe("mfa_not_enrolled");
   });
@@ -188,12 +206,12 @@ describe("rate limits", () => {
   it("limits one address", async () => {
     const { buildApp } = await import("../src/http/app.js");
     const { config } = await import("./helpers/harness.js");
-    const { MockSmsProvider } = await import("../src/providers/sms.js");
+    const { MockEmailProvider } = await import("../src/providers/email.js");
     const { MockNafathProvider } = await import("../src/providers/nafath.js");
-    const app = buildApp({ ...h.ctx, config, sms: new MockSmsProvider(), nafath: new MockNafathProvider(), now: () => new Date(), limits: { global: 5, auth: 3 } });
+    const app = buildApp({ ...h.ctx, config, mail: new MockEmailProvider(), nafath: new MockNafathProvider(), now: () => new Date(), limits: { global: 5, auth: 3 } });
     const codes: number[] = [];
     for (let i = 0; i < 5; i++) {
-      const r = await app.inject({ method: "POST", url: "/api/auth/otp/request", payload: { phone: nextPhone() } });
+      const r = await app.inject({ method: "POST", url: "/api/auth/otp/request", payload: { email: nextEmail() } });
       codes.push(r.statusCode);
     }
     expect(codes).toEqual([200, 200, 200, 429, 429]);

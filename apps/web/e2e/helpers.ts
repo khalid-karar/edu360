@@ -17,9 +17,9 @@ export async function api(method: string, path: string, body?: unknown, token?: 
   return json;
 }
 
-export async function apiLogin(phone: string): Promise<string> {
-  const r = await api("POST", "/auth/otp/request", { phone });
-  return (await api("POST", "/auth/otp/verify", { phone, code: r.mock_code })).token;
+export async function apiLogin(email: string): Promise<string> {
+  const r = await api("POST", "/auth/otp/request", { email });
+  return (await api("POST", "/auth/otp/verify", { email, code: r.mock_code })).token;
 }
 
 const B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -31,32 +31,32 @@ function unbase32(s: string): Buffer {
   return Buffer.from(out);
 }
 /** Current authenticator code. `step` shifts by 30-second windows: a code cannot be used twice in one window. */
-export function totp(phone: string, step = 0): string {
+export function totp(email: string, step = 0): string {
   const secrets = JSON.parse(readFileSync(SECRETS_FILE, "utf8")) as Record<string, string>;
   const n = Math.floor(Date.now() / 30_000) + step;
   const b = Buffer.alloc(8);
   b.writeBigUInt64BE(BigInt(n));
-  const h = createHmac("sha1", unbase32(secrets[phone]!)).update(b).digest();
+  const h = createHmac("sha1", unbase32(secrets[email]!)).update(b).digest();
   const o = h[19]! & 15;
   const code = (((h[o]! & 127) << 24) | (h[o + 1]! << 16) | (h[o + 2]! << 8) | h[o + 3]!) % 1_000_000;
   return String(code).padStart(6, "0");
 }
 
 /** Signs in through the page. The sandbox shows the one-time code on screen with a "fill" button. */
-export async function signIn(page: Page, phone: string) {
+export async function signIn(page: Page, email: string) {
   page.on("dialog", (d) => void d.accept()); // the app asks "are you sure?" with confirm(); Playwright would dismiss it
   await page.goto("/portal/login");
-  await page.fill("input.ltr", phone.replace("+966", "0"));
+  await page.fill("input.ltr", email);
   await page.click("text=إرسال الرمز");
   await page.click("text=تعبئة");
   await page.click("button:has-text('تأكيد')");
 }
 
-export async function signInStaff(browser: Browser, phone: string, step = 0) {
+export async function signInStaff(browser: Browser, email: string, step = 0) {
   const ctx = await browser.newContext({ viewport: { width: 1100, height: 900 }, locale: "ar-SA" });
   const page = await ctx.newPage();
-  await signIn(page, phone);
-  await page.fill("input.otp", totp(phone, step));
+  await signIn(page, email);
+  await page.fill("input.otp", totp(email, step));
   await page.click("button:has-text('تأكيد')");
   await page.waitForURL("**/portal/staff**");
   return page;

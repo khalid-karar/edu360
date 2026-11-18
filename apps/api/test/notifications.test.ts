@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { render } from "../src/domain/notifications.js";
-import { deliverSms, sendReminders } from "../src/services/notifications.js";
+import { deliverEmails, sendReminders } from "../src/services/notifications.js";
 import { makeHarness } from "./helpers/harness.js";
 import { HOUR, makeMarket } from "./helpers/market.js";
 
@@ -130,10 +130,10 @@ describe("reminders and texts", () => {
     expect((await mine(l)).items.filter((n) => n.kind === "lesson_reminder")).toHaveLength(1);
     expect((await mine(t)).items.filter((n) => n.kind === "lesson_reminder")).toHaveLength(1);
 
-    const sent = await deliverSms(h.db, h.sms, h.clock.now());
+    const sent = await deliverEmails(h.db, h.mail, h.clock.now());
     expect(sent.sent).toBeGreaterThan(0);
-    expect(h.sms.outbox.some((x) => x.text.includes("درسك بعد قليل"))).toBe(true);
-    expect((await deliverSms(h.db, h.sms, h.clock.now())).sent).toBe(0); // not twice
+    expect(h.mail.outbox.some((x) => x.text.includes("درسك بعد قليل"))).toBe(true);
+    expect((await deliverEmails(h.db, h.mail, h.clock.now())).sent).toBe(0); // not twice
   });
 
   it("retries a failing gateway three times and then gives up", async () => {
@@ -144,7 +144,7 @@ describe("reminders and texts", () => {
     const failing = { send: async () => { throw new Error("gateway down"); } };
     const due = (id: string) => h.db.query<{ n: number }>("SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND sms AND sms_sent_at IS NULL AND sms_attempts < 3", [id]);
     expect((await due(t.id)).rows[0]!.n).toBe(1);
-    for (let i = 0; i < 4; i++) await deliverSms(h.db, failing, h.clock.now());
+    for (let i = 0; i < 4; i++) await deliverEmails(h.db, failing, h.clock.now());
     expect((await due(t.id)).rows[0]!.n).toBe(0);
     expect((await h.db.query<{ a: number }>("SELECT sms_attempts AS a FROM notifications WHERE user_id = $1 AND sms", [t.id])).rows[0]!.a).toBe(3);
   });

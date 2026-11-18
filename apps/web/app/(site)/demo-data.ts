@@ -2,14 +2,14 @@
 export type RoleKey = "learner" | "guardian" | "minor" | "teacher" | "vetting" | "safety" | "finance" | "admin";
 
 export const ROLES: { key: RoleKey; ar: string; en: string; who: string; phone: string; blurb: string; icon: string }[] = [
-  { key: "learner", ar: "متعلّم (١٨+)", en: "Learner", who: "خالد العمري", phone: "+966500000001", blurb: "ابحث عن معلّم، احجز، وادفع بحماية.", icon: "🎓" },
-  { key: "guardian", ar: "ولي أمر", en: "Guardian", who: "أم عبدالله", phone: "+966500000002", blurb: "تحكّم بحسابات أبنائك واعتمد كل معلّم جديد.", icon: "👨‍👩‍👧" },
-  { key: "minor", ar: "متعلّم قاصر", en: "Minor learner", who: "عبدالله (١٢ سنة)", phone: "+966500000003", blurb: "يحضر الجلسات تحت حساب ولي أمره.", icon: "🧒" },
-  { key: "teacher", ar: "معلّم", en: "Teacher", who: "أ. نورة العتيبي", phone: "+966500000004", blurb: "ملفك، جدولك، أرباحك، وتوثيق الهوية.", icon: "🧑‍🏫" },
-  { key: "vetting", ar: "مسؤول التحقق", en: "Vetting officer", who: "ليلى الغامدي", phone: "+966500000005", blurb: "مراجعة الهوية والشهادات وقبول المعلّمين.", icon: "🪪" },
-  { key: "safety", ar: "الثقة والسلامة", en: "Trust & Safety", who: "فهد السبيعي", phone: "+966500000006", blurb: "البلاغات والتسجيلات ومنع التواصل خارج المنصة.", icon: "🛡️" },
-  { key: "finance", ar: "المالية", en: "Finance", who: "منال الزهراني", phone: "+966500000007", blurb: "التحويلات والاسترداد وتسوية الدفعات.", icon: "💳" },
-  { key: "admin", ar: "مدير النظام", en: "Super admin", who: "طلال الزامل", phone: "+966500000008", blurb: "الإعدادات والعمولات وسجل التدقيق.", icon: "⚙️" },
+  { key: "learner", ar: "متعلّم (١٨+)", en: "Learner", who: "خالد العمري", phone: "500000001@ilmak.test", blurb: "ابحث عن معلّم، احجز، وادفع بحماية.", icon: "🎓" },
+  { key: "guardian", ar: "ولي أمر", en: "Guardian", who: "أم عبدالله", phone: "500000002@ilmak.test", blurb: "تحكّم بحسابات أبنائك واعتمد كل معلّم جديد.", icon: "👨‍👩‍👧" },
+  { key: "minor", ar: "متعلّم قاصر", en: "Minor learner", who: "عبدالله (١٢ سنة)", phone: "500000003@ilmak.test", blurb: "يحضر الجلسات تحت حساب ولي أمره.", icon: "🧒" },
+  { key: "teacher", ar: "معلّم", en: "Teacher", who: "أ. نورة العتيبي", phone: "500000004@ilmak.test", blurb: "ملفك، جدولك، أرباحك، وتوثيق الهوية.", icon: "🧑‍🏫" },
+  { key: "vetting", ar: "مسؤول التحقق", en: "Vetting officer", who: "ليلى الغامدي", phone: "500000005@ilmak.test", blurb: "مراجعة الهوية والشهادات وقبول المعلّمين.", icon: "🪪" },
+  { key: "safety", ar: "الثقة والسلامة", en: "Trust & Safety", who: "فهد السبيعي", phone: "500000006@ilmak.test", blurb: "البلاغات والتسجيلات ومنع التواصل خارج المنصة.", icon: "🛡️" },
+  { key: "finance", ar: "المالية", en: "Finance", who: "منال الزهراني", phone: "500000007@ilmak.test", blurb: "التحويلات والاسترداد وتسوية الدفعات.", icon: "💳" },
+  { key: "admin", ar: "مدير النظام", en: "Super admin", who: "طلال الزامل", phone: "500000008@ilmak.test", blurb: "الإعدادات والعمولات وسجل التدقيق.", icon: "⚙️" },
 ];
 
 export const TEACHER_NATIONAL_ID = "1000000001"; // ends in 1 → mock Nafath approves (ending 0 = rejected)

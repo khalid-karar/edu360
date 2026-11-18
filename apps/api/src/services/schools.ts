@@ -7,7 +7,8 @@ export interface SchoolApplication {
   name: string;
   city: string;
   contactName: string;
-  contactMobile: string;
+  contactEmail: string;
+  contactMobile?: string | undefined;
   licenseNo?: string | undefined;
   studentEstimate?: number | undefined;
 }
@@ -15,9 +16,9 @@ export interface SchoolApplication {
 export async function applyForSchool(db: Db, now: Date, a: SchoolApplication): Promise<{ id: string }> {
   try {
     const r = await db.query<{ id: string }>(
-      `INSERT INTO schools (name, city, contact_name, contact_mobile, license_no, student_estimate, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-      [a.name, a.city, a.contactName, a.contactMobile, a.licenseNo ?? null, a.studentEstimate ?? null, now],
+      `INSERT INTO schools (name, city, contact_name, contact_email, contact_mobile, license_no, student_estimate, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+      [a.name, a.city, a.contactName, a.contactEmail, a.contactMobile ?? null, a.licenseNo ?? null, a.studentEstimate ?? null, now],
     );
     return { id: r.rows[0]!.id };
   } catch (e) {
@@ -31,7 +32,8 @@ interface SchoolRow {
   name: string;
   city: string;
   contact_name: string;
-  contact_mobile: string;
+  contact_email: string | null;
+  contact_mobile: string | null;
   license_no: string | null;
   student_estimate: number | null;
   status: string;
@@ -53,6 +55,7 @@ export async function listSchools(db: Db, status?: string) {
     name: s.name,
     city: s.city,
     contactName: s.contact_name,
+    contactEmail: s.contact_email,
     contactMobile: s.contact_mobile,
     licenseNo: s.license_no,
     studentEstimate: s.student_estimate,
@@ -66,7 +69,7 @@ export async function listSchools(db: Db, status?: string) {
 }
 
 /**
- * Approves (creates the school's login on its contact mobile and an invite code) or rejects with a reason. Done once:
+ * Approves (creates the school's login on its contact email and an invite code) or rejects with a reason. Done once:
  * a decided application cannot be decided again.
  */
 export async function decideSchool(db: Db, now: Date, officerId: string, schoolId: string, decision: "approve" | "reject", reason?: string) {
@@ -78,11 +81,12 @@ export async function decideSchool(db: Db, now: Date, officerId: string, schoolI
       if (!reason?.trim()) throw new HttpError(422, "reason_required");
       await tx.query("UPDATE schools SET status = 'rejected', reject_reason = $2, decided_by = $3, decided_at = $4 WHERE id = $1", [schoolId, reason.trim(), officerId, now]);
       await audit(tx, { actorId: officerId, action: "school.rejected", targetType: "school", targetId: schoolId, reason: reason.trim() });
-      return { status: "rejected" as const, mobile: s.contact_mobile, name: s.name };
+      return { status: "rejected" as const, email: s.contact_email ?? "", name: s.name };
     }
-    // The login is the contact's own mobile. If that number already belongs to someone, a second account cannot be made for it.
-    if ((await tx.query("SELECT 1 FROM users WHERE mobile = $1", [s.contact_mobile])).rowCount) throw new HttpError(409, "mobile_in_use");
-    const owner = (await tx.query<{ id: string }>("INSERT INTO users (role, status, mobile, display_name) VALUES ('school','active',$1,$2) RETURNING id", [s.contact_mobile, s.name])).rows[0]!;
+    // The login is the contact's own email. If that address already belongs to someone, a second account cannot be made for it.
+    if (!s.contact_email) throw new HttpError(422, "email_required");
+    if ((await tx.query("SELECT 1 FROM users WHERE email = $1", [s.contact_email])).rowCount) throw new HttpError(409, "email_in_use");
+    const owner = (await tx.query<{ id: string }>("INSERT INTO users (role, status, email, display_name) VALUES ('school','active',$1,$2) RETURNING id", [s.contact_email, s.name])).rows[0]!;
     let code = "";
     for (let i = 0; i < 5; i++) {
       code = newSchoolCode();
@@ -91,7 +95,7 @@ export async function decideSchool(db: Db, now: Date, officerId: string, schoolI
     }
     await tx.query("UPDATE schools SET status = 'approved', invite_code = $2, owner_id = $3, decided_by = $4, decided_at = $5 WHERE id = $1", [schoolId, code, owner.id, officerId, now]);
     await audit(tx, { actorId: officerId, action: "school.approved", targetType: "school", targetId: schoolId, detail: { ownerId: owner.id } });
-    return { status: "approved" as const, mobile: s.contact_mobile, name: s.name, code };
+    return { status: "approved" as const, email: s.contact_email, name: s.name, code };
   });
 }
 

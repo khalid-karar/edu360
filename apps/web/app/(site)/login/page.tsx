@@ -14,14 +14,14 @@ export default function Login() {
   async function send() {
     if (!r) return;
     setErr("");
-    const res = await api<{ ok: boolean; mock_code?: string }>("/api/auth/otp/request", { phone: r.phone });
+    const res = await api<{ ok: boolean; mock_code?: string }>("/api/auth/otp/request", { email: r.phone });
     const c = res?.mock_code ?? "123456"; // offline fallback when the API is not reachable
     setSent(c);
     setCode(c);
   }
   async function verify() {
     if (!r) return;
-    const res = await api<{ ok: boolean }>("/api/auth/otp/verify", { phone: r.phone, code });
+    const res = await api<{ ok: boolean }>("/api/auth/otp/verify", { email: r.phone, code });
     if (res && !res.ok) return setErr("الرمز غير صحيح");
     setSession({ role: r.key, name: r.who, phone: r.phone });
     window.location.href = `/dashboard/${r.key}`;
@@ -74,7 +74,7 @@ export default function Login() {
               </>
             ) : (
               <>
-                <p className="lg-hint">رمز تجريبي: <b dir="ltr">{sent}</b>. في النسخة الحقيقية يصل الرمز برسالة SMS إلى جوالك فقط.</p>
+                <p className="lg-hint">رمز تجريبي: <b dir="ltr">{sent}</b>. في النسخة الحقيقية يصل الرمز برسالة إلى بريدك الإلكتروني فقط.</p>
                 <label className="lg-label" htmlFor="otp">رمز التحقق</label>
                 <input id="otp" className="lg-otp" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" />
                 <button className="lg-go" onClick={verify}>دخول</button>

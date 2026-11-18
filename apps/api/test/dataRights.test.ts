@@ -25,7 +25,7 @@ describe("export", () => {
     expect(r.body.bookings).toHaveLength(1);
     expect(r.body.payments).toHaveLength(1);
     const text = JSON.stringify(r.body);
-    expect(text).not.toContain(t.phone);
+    expect(text).not.toContain(t.email);
     expect(text).not.toContain("national_id_hash");
 
     const tr = await h.call("GET", "/api/account/export", { token: t.token });
@@ -123,8 +123,8 @@ describe("deletion", () => {
     await h.call("POST", `/api/admin/safety/users/${g.id}/strike`, { token: officer.token, body: { reason: "سلوك غير لائق ومخالفة جسيمة للسياسة", zeroTolerance: true } });
     const s = await (async () => {
       h.clock.advance(11 * 60_000);
-      const rq = await h.call("POST", "/api/auth/otp/request", { body: { phone: g.phone } });
-      return (await h.call("POST", "/api/auth/otp/verify", { body: { phone: g.phone, code: rq.body.mock_code } })).body as { token: string };
+      const rq = await h.call("POST", "/api/auth/otp/request", { body: { email: g.email } });
+      return (await h.call("POST", "/api/auth/otp/verify", { body: { email: g.email, code: rq.body.mock_code } })).body as { token: string };
     })();
     expect((await h.call("GET", "/api/account/export", { token: s.token })).status).toBe(200);
     expect((await del(s.token)).status).toBe(201);

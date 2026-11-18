@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
-import { makeHarness, nextPhone } from "./helpers/harness.js";
+import { makeHarness, nextEmail } from "./helpers/harness.js";
 import { makeMarket } from "./helpers/market.js";
 
 let h: Awaited<ReturnType<typeof makeHarness>>;
@@ -49,7 +49,7 @@ describe("the numbers", () => {
     await h.db.query("INSERT INTO reports (reporter_id, booking_id, reason) VALUES ($1,$2,'x')", [l.id, bookingId]);
     await h.db.query("INSERT INTO flags (source, target_type, target_id, category, severity) VALUES ('rule','message',$1,'leakage',2)", [randomUUID()]);
     await h.db.query("INSERT INTO disputes (booking_id, opened_by, reason) VALUES ($1,$2,'x')", [bookingId, l.id]);
-    await h.call("POST", "/api/schools/apply", { body: { name: "مدرسة الأمل", city: "جدة", contactName: "سلمان", contactMobile: nextPhone() } });
+    await h.call("POST", "/api/schools/apply", { body: { name: "مدرسة الأمل", city: "جدة", contactName: "سلمان", contactEmail: nextEmail() } });
     void draft;
 
     // Users get the database clock on creation, which in these tests is not the harness clock the report measures against.
@@ -90,7 +90,7 @@ describe("the numbers", () => {
     expect(a.quality30d).toMatchObject({ reviews: 1, averageRating: 4 });
   });
 
-  it("holds aggregates only: no ids, phone numbers or names", async () => {
+  it("holds aggregates only: no ids, emails or names", async () => {
     const text = JSON.stringify((await read()).body);
     expect(text).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/);
     expect(text).not.toMatch(/\+9665\d+/);

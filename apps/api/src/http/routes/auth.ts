@@ -3,7 +3,7 @@ import { z } from "zod";
 import { decrypt } from "../../security/crypto.js";
 import { verifyTotp } from "../../security/totp.js";
 import { audit } from "../../services/audit.js";
-import { checkOtp, consumeOtp, PHONE_RE, requestOtp } from "../../services/otp.js";
+import { checkOtp, consumeOtp, EMAIL_RE, normalizeEmail, requestOtp } from "../../services/otp.js";
 import { createSession, revokeSession } from "../../services/sessions.js";
 import { schoolIdForCode } from "../../services/schools.js";
 import type { Ctx } from "../context.js";
@@ -12,11 +12,11 @@ import { CLIENT_HEADER, clearSessionCookie, setSessionCookie } from "../session-
 import { guard, isStaff, me } from "../guard.js";
 import { rateLimit } from "../rate-limit.js";
 
-const phone = z.string().regex(PHONE_RE, "phone must look like +9665XXXXXXXX");
-const RequestBody = z.object({ phone }).strict();
+const email = z.string().max(254).transform(normalizeEmail).pipe(z.string().regex(EMAIL_RE, "email must look like name@example.com"));
+const RequestBody = z.object({ email }).strict();
 const VerifyBody = z
   .object({
-    phone,
+    email,
     code: z.string().regex(/^\d{6}$/),
     // Only these three can self-register. Staff accounts are created by a super admin, never here.
     role: z.enum(["learner", "guardian", "teacher"]).optional(),
@@ -36,27 +36,27 @@ interface UserRow {
 
 export const authRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
   const limit = rateLimit(ctx.limits.auth, { name: "auth", store: ctx.rateStore });
-  const otpDeps = { db: ctx.db, sms: ctx.sms, key: ctx.config.otpKey, now: ctx.now };
+  const otpDeps = { db: ctx.db, mail: ctx.mail, key: ctx.config.otpKey, now: ctx.now };
   const mfaFailures = new Map<string, number>();
 
   app.post("/auth/otp/request", { preHandler: limit }, async (req) => {
-    const { phone: p } = parse(RequestBody, req.body);
-    const code = await requestOtp(otpDeps, p);
-    // The answer is the same whether or not the number has an account.
+    const { email: e } = parse(RequestBody, req.body);
+    const code = await requestOtp(otpDeps, e);
+    // The answer is the same whether or not the address has an account.
     return ctx.config.echoOtp ? { ok: true, mock_code: code } : { ok: true };
   });
 
   app.post("/auth/otp/verify", { preHandler: limit }, async (req, reply) => {
     const b = parse(VerifyBody, req.body);
-    const otpId = await checkOtp(otpDeps, b.phone, b.code);
+    const otpId = await checkOtp(otpDeps, b.email, b.code);
     if (!otpId) throw new HttpError(401, "invalid_code");
 
-    let user = (await ctx.db.query<UserRow>("SELECT id, role, status, display_name FROM users WHERE mobile = $1", [b.phone])).rows[0];
+    let user = (await ctx.db.query<UserRow>("SELECT id, role, status, display_name FROM users WHERE email = $1", [b.email])).rows[0];
     if (!user && (!b.role || !b.displayName)) {
       // The code is still valid: the client asks for the missing fields and calls again.
       throw new HttpError(409, "registration_required", { needs: ["role", "displayName"] });
     }
-    // Checked before the code is spent, so a mistyped school code can be corrected without asking for a new SMS.
+    // Checked before the code is spent, so a mistyped school code can be corrected without asking for a new code.
     let schoolId: string | null = null;
     if (!user && b.schoolCode) {
       if (b.role !== "learner" && b.role !== "guardian") throw new HttpError(422, "invalid_school_code");
@@ -68,10 +68,10 @@ export const authRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
       const role = b.role!;
       user = await ctx.db.tx(async (tx) => {
         const u = await tx.query<UserRow>(
-          `INSERT INTO users (role, status, mobile, display_name, school_id) VALUES ($1,$2,$3,$4,$5)
+          `INSERT INTO users (role, status, email, display_name, school_id) VALUES ($1,$2,$3,$4,$5)
            RETURNING id, role, status, display_name`,
           // Adults who only learn can start straight away. Teachers and guardians must verify identity first.
-          [role, role === "learner" ? "active" : "pending", b.phone, b.displayName, schoolId],
+          [role, role === "learner" ? "active" : "pending", b.email, b.displayName, schoolId],
         );
         if (role === "teacher") await tx.query("INSERT INTO teacher_profiles (user_id) VALUES ($1)", [u.rows[0]!.id]);
         return u.rows[0]!;

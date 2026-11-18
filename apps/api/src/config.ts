@@ -6,8 +6,19 @@ const hexKey = z.string().regex(/^[0-9a-fA-F]{64}$/, "must be 64 hex characters 
 const Env = z.object({
   PORT: z.coerce.number().int().default(3000),
   DATABASE_URL: z.string().min(1),
-  /** SMS and Nafath. Only "mock" exists until their contracts are signed. */
+  /** Nafath. Only "mock" exists until its contract is signed. */
   PROVIDERS: z.string().default("mock"),
+  /** Email for login codes and notices. "smtp" needs the SMTP values below. */
+  // Not called MAIL: that is a standard Unix variable (the mailbox path) and would clash in any shell.
+  MAIL_MODE: z.enum(["mock", "smtp"]).default("mock"),
+  SMTP_HOST: z.string().min(1).optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_USER: z.string().min(1).optional(),
+  SMTP_PASS: z.string().min(1).optional(),
+  /** The sender, e.g. "Ilmak <no-reply@elevantec.sa>". Must be an approved sender at the mail relay. */
+  MAIL_FROM: z.string().min(3).optional(),
+  /** Public address of the site, used in links inside emails, e.g. https://ilmak.elevantec.sa */
+  PUBLIC_URL: z.string().url().optional(),
   /** Card payments. "moyasar" needs both Moyasar values below; check it against their sandbox first. */
   PAYMENTS: z.enum(["mock", "moyasar"]).default("mock"),
   MOYASAR_SECRET_KEY: z.string().min(1).optional(),
@@ -77,7 +88,9 @@ export interface Config {
   cookieSecure: boolean;
   allowedOrigins: string[];
   video?: { kind: "mock" } | { kind: "livekit"; url: string; apiKey: string; apiSecret: string };
-  /** Mock mode only: return the one-time code in the response. Real SMS never echoes it. */
+  mail?: { host: string; port: number; user: string; pass: string; from: string };
+  publicUrl?: string;
+  /** Mock mail only: return the one-time code in the response. Real email never echoes it. */
   echoOtp: boolean;
 }
 
@@ -85,6 +98,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const e = Env.parse(env);
   // Real providers are not wired yet. Refuse to start rather than silently run mocks by mistake.
   if (e.PROVIDERS !== "mock") throw new Error(`PROVIDERS=${e.PROVIDERS} is not implemented yet; use PROVIDERS=mock`);
+  if (e.MAIL_MODE === "smtp" && (!e.SMTP_HOST || !e.SMTP_USER || !e.SMTP_PASS || !e.MAIL_FROM)) {
+    throw new Error("MAIL_MODE=smtp needs SMTP_HOST, SMTP_USER, SMTP_PASS and MAIL_FROM");
+  }
   if (e.PAYMENTS === "moyasar" && (!e.MOYASAR_SECRET_KEY || !e.MOYASAR_WEBHOOK_SECRET)) {
     throw new Error("PAYMENTS=moyasar needs MOYASAR_SECRET_KEY and MOYASAR_WEBHOOK_SECRET");
   }
@@ -118,6 +134,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     ...(e.CLAMD_HOST ? { clamd: { host: e.CLAMD_HOST, port: e.CLAMD_PORT } } : {}),
     cookieSecure: e.COOKIE_SECURE === "true",
     allowedOrigins: e.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean),
-    echoOtp: e.PROVIDERS === "mock",
+    ...(e.MAIL_MODE === "smtp" ? { mail: { host: e.SMTP_HOST!, port: e.SMTP_PORT, user: e.SMTP_USER!, pass: e.SMTP_PASS!, from: e.MAIL_FROM! } } : {}),
+    ...(e.PUBLIC_URL ? { publicUrl: e.PUBLIC_URL.replace(/\/$/, "") } : {}),
+    echoOtp: e.MAIL_MODE === "mock",
   };
 }

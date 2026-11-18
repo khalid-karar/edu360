@@ -12,7 +12,7 @@ import { pgDb } from "../db/db.js";
 import { buildApp } from "../http/app.js";
 import { MockPaymentProvider } from "../payments/mock.js";
 import { MockNafathProvider } from "../providers/nafath.js";
-import { MockSmsProvider } from "../providers/sms.js";
+import { MockEmailProvider } from "../providers/email.js";
 import { createSession } from "../services/sessions.js";
 import { MockVideo } from "../video/provider.js";
 
@@ -32,7 +32,7 @@ const config: Config = {
 const db = pgDb(config.databaseUrl);
 await migrate(db);
 const payments = new MockPaymentProvider();
-const ctx = { db, storage: new MemoryStorage(), config, sms: new MockSmsProvider(), nafath: new MockNafathProvider(), payments, video: new MockVideo(), mockPayments: payments, now: () => new Date(), limits: { global: 1e9, auth: 1e9 } };
+const ctx = { db, storage: new MemoryStorage(), config, mail: new MockEmailProvider(), nafath: new MockNafathProvider(), payments, video: new MockVideo(), mockPayments: payments, now: () => new Date(), limits: { global: 1e9, auth: 1e9 } };
 const app = buildApp(ctx);
 await app.listen({ port: PORT, host: "127.0.0.1" });
 
@@ -43,7 +43,7 @@ const day = new Date(Date.now() + 2 * 24 * HOUR);
 day.setUTCHours(6, 0, 0, 0);
 interface Person { id: string; token: string }
 async function person(role: "teacher" | "learner", i: number): Promise<Person> {
-  const u = (await db.query<{ id: string }>("INSERT INTO users (role, status, mobile, display_name) VALUES ($1,'active',$2,$3) RETURNING id", [role, `+9665${role === "teacher" ? 1 : 2}${String(i).padStart(7, "0")}${Math.floor(Math.random() * 1e3)}`.slice(0, 13), `${role} ${i}`])).rows[0]!.id;
+  const u = (await db.query<{ id: string }>("INSERT INTO users (role, status, email, display_name) VALUES ($1,'active',$2,$3) RETURNING id", [role, `${role}${i}-${Math.floor(Math.random() * 1e6)}@ilmak.test`, `${role} ${i}`])).rows[0]!.id;
   await db.query("INSERT INTO identity_verifications (user_id, national_id_hash, full_name, gender, date_of_birth) VALUES ($1,$2,$3,'male','1990-01-01')", [u, randomBytes(16).toString("hex"), `${role} ${i}`]);
   if (role === "teacher") {
     await db.query("INSERT INTO teacher_profiles (user_id, status, bio, languages, iban, iban_holder_name, approved_at, freelance_document_no) VALUES ($1,'approved','نبذة',$2,'SA0380000000608010167519','x',now() - interval '60 days','FL-1')", [u, ["ar"]]);
@@ -172,7 +172,7 @@ const check = (ok: boolean, what: string) => { console.log(`${ok ? "PASS" : "FAI
 
 {
   // five finance runs at once over 60 payments that are ready: every payment must land in exactly one payout
-  const fin = (await db.query<{ id: string }>("INSERT INTO users (role, status, mobile, display_name) VALUES ('finance_officer','active','+966500009999','fin') RETURNING id")).rows[0]!.id;
+  const fin = (await db.query<{ id: string }>("INSERT INTO users (role, status, email, display_name) VALUES ('finance_officer','active','500009999@ilmak.test','fin') RETURNING id")).rows[0]!.id;
   const ft = (await createSession(db, { userId: fin, mfaVerified: true, hours: 1, ip: undefined, userAgent: undefined, now: new Date() })).token;
   const old = new Date(Date.now() - 10 * 24 * HOUR);
   for (let i = 0; i < 60; i++) {

@@ -1,6 +1,6 @@
 import type { Db } from "../db/db.js";
 import { render, type NoticeKind, type NoticeVars } from "../domain/notifications.js";
-import type { SmsProvider } from "../providers/sms.js";
+import type { EmailProvider } from "../providers/email.js";
 
 export interface NewNotice {
   userId: string;
@@ -31,22 +31,22 @@ const SMS_BATCH = 50;
 const SMS_MAX_ATTEMPTS = 3;
 const SMS_MAX_AGE_HOURS = 6; // a late "your lesson starts soon" is worse than none
 
-/** Sends the texts that are due. A failure is retried on the next sweep, up to three times, then dropped. */
-export async function deliverSms(db: Db, sms: SmsProvider, now: Date): Promise<{ sent: number; failed: number }> {
-  const due = await db.query<{ id: string; mobile: string | null; title: string; body: string }>(
-    `SELECT n.id, u.mobile, n.title, n.body FROM notifications n JOIN users u ON u.id = n.user_id
+/** Emails the notices that are due (the `sms` column is the "send outside the app" flag). A failure is retried on the next sweep, up to three times, then dropped. */
+export async function deliverEmails(db: Db, mail: EmailProvider, now: Date): Promise<{ sent: number; failed: number }> {
+  const due = await db.query<{ id: string; email: string | null; title: string; body: string }>(
+    `SELECT n.id, u.email, n.title, n.body FROM notifications n JOIN users u ON u.id = n.user_id
       WHERE n.sms AND n.sms_sent_at IS NULL AND n.sms_attempts < $1 AND n.created_at > $2
       ORDER BY n.created_at LIMIT ${SMS_BATCH}`,
     [SMS_MAX_ATTEMPTS, new Date(now.getTime() - SMS_MAX_AGE_HOURS * 3_600_000)],
   );
   const out = { sent: 0, failed: 0 };
   for (const n of due.rows) {
-    if (!n.mobile) {
-      await db.query("UPDATE notifications SET sms_attempts = $2 WHERE id = $1", [n.id, SMS_MAX_ATTEMPTS]); // a child has no phone: nothing to send
+    if (!n.email) {
+      await db.query("UPDATE notifications SET sms_attempts = $2 WHERE id = $1", [n.id, SMS_MAX_ATTEMPTS]); // a child has no email: nothing to send
       continue;
     }
     try {
-      await sms.send(n.mobile, `عِلمك: ${n.title}. ${n.body}`);
+      await mail.send(n.email, `عِلمك: ${n.title}`, `${n.title}\n\n${n.body}`);
       await db.query("UPDATE notifications SET sms_sent_at = $2, sms_attempts = sms_attempts + 1 WHERE id = $1", [n.id, now]);
       out.sent++;
     } catch {

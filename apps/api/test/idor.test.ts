@@ -100,7 +100,7 @@ describe("other people's notifications, strikes, appeals and teacher records", (
     expect((await h.call("GET", "/api/teacher/me", { token: other.token })).body.iban ?? "").not.toContain("0167519x");
     const view = JSON.stringify((await h.call("GET", `/api/teachers/${t.id}`, { token: a.token })).body);
     expect(view).not.toContain("SA03800000");
-    expect(view).not.toContain(t.phone);
+    expect(view).not.toContain(t.email);
     void lesson;
   });
 });

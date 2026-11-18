@@ -5,7 +5,7 @@ import WebSocket from "ws";
 import { Hub, MAX_CONNECTIONS_PER_USER } from "../src/realtime/hub.js";
 import { RedisBus } from "../src/realtime/redis-bus.js";
 import { sessionStillValid } from "../src/services/sessions.js";
-import { makeHarness, nextPhone } from "./helpers/harness.js";
+import { makeHarness, nextEmail } from "./helpers/harness.js";
 import { makeMarket } from "./helpers/market.js";
 
 let h: Awaited<ReturnType<typeof makeHarness>>;

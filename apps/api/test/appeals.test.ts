@@ -12,10 +12,10 @@ beforeAll(async () => {
 const LONG = "سلوك غير لائق أثناء الدرس ويحتاج مراجعة";
 const APPEAL = "أعترض على هذه المخالفة لأن ما حدث كان سوء فهم وقد وثّقته في المحادثة.";
 const strike = (token: string, userId: string, body: object = {}) => h.call("POST", `/api/admin/safety/users/${userId}/strike`, { token, body: { reason: LONG, ...body } });
-const signIn = async (phone: string) => {
+const signIn = async (email: string) => {
   h.clock.advance(11 * 60_000);
-  const rq = await h.call("POST", "/api/auth/otp/request", { body: { phone } });
-  return (await h.call("POST", "/api/auth/otp/verify", { body: { phone, code: rq.body.mock_code } })).body as { token: string; next: string | null };
+  const rq = await h.call("POST", "/api/auth/otp/request", { body: { email } });
+  return (await h.call("POST", "/api/auth/otp/verify", { body: { email, code: rq.body.mock_code } })).body as { token: string; next: string | null };
 };
 
 describe("suspending a payer", () => {
@@ -48,7 +48,7 @@ describe("appeals", () => {
 
   it("lets a banned person see their record and appeal, once per strike, and nothing else", async () => {
     const { t } = await bannedTeacher();
-    const s = await signIn(t.phone);
+    const s = await signIn(t.email);
     expect(s.next).toBe("appeal");
     expect((await h.call("GET", "/api/bookings", { token: s.token })).body.error).toBe("account_banned");
 
@@ -68,10 +68,10 @@ describe("appeals", () => {
 
   it("closes the window after 30 days", async () => {
     const { t } = await bannedTeacher();
-    const s = await signIn(t.phone);
+    const s = await signIn(t.email);
     const id = (await h.call("GET", "/api/account/strikes", { token: s.token })).body.strikes[0].id as string;
     h.clock.advance(31 * 24 * HOUR);
-    const s2 = await signIn(t.phone);
+    const s2 = await signIn(t.email);
     expect((await h.call("GET", "/api/account/strikes", { token: s2.token })).body.strikes[0].canAppeal).toBe(false);
     expect((await h.call("POST", "/api/appeals", { token: s2.token, body: { strikeId: id, reason: APPEAL } })).body.error).toBe("appeal_window_closed");
   });
@@ -79,7 +79,7 @@ describe("appeals", () => {
   it("is decided by a different officer; reversing voids the strike, restores the account and the ladder starts over", async () => {
     const { t, first } = await bannedTeacher();
     const l = await m.verified("learner");
-    const s = await signIn(t.phone);
+    const s = await signIn(t.email);
     const strikeId = (await h.call("GET", "/api/account/strikes", { token: s.token })).body.strikes[0].id as string;
     const filed = await h.call("POST", "/api/appeals", { token: s.token, body: { strikeId, reason: APPEAL } });
 
@@ -114,7 +114,7 @@ describe("appeals", () => {
 
   it("keeps the ban when the appeal is upheld, and keeps a suspension if another strike still requires it", async () => {
     const { t } = await bannedTeacher();
-    const s = await signIn(t.phone);
+    const s = await signIn(t.email);
     const id = (await h.call("GET", "/api/account/strikes", { token: s.token })).body.strikes[0].id as string;
     const a = await h.call("POST", "/api/appeals", { token: s.token, body: { strikeId: id, reason: APPEAL } });
     const other = await h.staff("safety_officer");

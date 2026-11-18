@@ -367,7 +367,7 @@ describe("api hygiene", () => {
   it("answers health, 404s cleanly and rejects oversized or broken bodies", async () => {
     expect((await h.call("GET", "/api/health")).body.ok).toBe(true);
     expect((await h.call("GET", "/api/nope")).status).toBe(404);
-    const big = await h.app.inject({ method: "POST", url: "/api/auth/otp/request", headers: { "content-type": "application/json" }, payload: JSON.stringify({ phone: "x".repeat(20_000) }) });
+    const big = await h.app.inject({ method: "POST", url: "/api/auth/otp/request", headers: { "content-type": "application/json" }, payload: JSON.stringify({ email: "x".repeat(20_000) }) });
     expect(big.statusCode).toBe(413);
     const broken = await h.app.inject({ method: "POST", url: "/api/auth/otp/request", headers: { "content-type": "application/json" }, payload: "{nope" });
     expect(broken.statusCode).toBe(400);

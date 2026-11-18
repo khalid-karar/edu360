@@ -1,59 +1,61 @@
 import { randomInt } from "node:crypto";
 import type { Db } from "../db/db.js";
 import { hmacHex, safeEqual } from "../security/crypto.js";
-import type { SmsProvider } from "../providers/sms.js";
+import type { EmailProvider } from "../providers/email.js";
 import { HttpError } from "../http/errors.js";
 
 export const OTP_TTL_MS = 5 * 60_000;
 export const OTP_MAX_ATTEMPTS = 5;
-/** At most this many codes per phone in the window, so nobody can use us to spam a number. */
+/** At most this many codes per address in the window, so nobody can use us to spam an inbox. */
 export const OTP_MAX_REQUESTS = 3;
 export const OTP_REQUEST_WINDOW_MS = 10 * 60_000;
-export const PHONE_RE = /^\+9665\d{8}$/;
+export const EMAIL_RE = /^[^\s@<>(),;:"\\]+@[^\s@<>(),;:"\\]+\.[^\s@<>(),;:"\\]{2,}$/;
+/** Addresses are compared in lower case everywhere. */
+export const normalizeEmail = (s: string) => s.trim().toLowerCase();
 
 interface OtpDeps {
   db: Db;
-  sms: SmsProvider;
+  mail: EmailProvider;
   key: Buffer;
   now: () => Date;
 }
 
-const hashCode = (key: Buffer, phone: string, code: string) => hmacHex(key, `${phone}:${code}`);
+const hashCode = (key: Buffer, email: string, code: string) => hmacHex(key, `${email}:${code}`);
 
 /** Issues a code and sends it. Returns the code so mock mode can echo it; real mode never does. */
-export async function requestOtp(d: OtpDeps, phone: string): Promise<string> {
+export async function requestOtp(d: OtpDeps, email: string): Promise<string> {
   const now = d.now();
   const since = new Date(now.getTime() - OTP_REQUEST_WINDOW_MS);
   const recent = await d.db.query<{ n: number }>(
-    "SELECT count(*)::int AS n FROM otp_codes WHERE phone = $1 AND created_at > $2",
-    [phone, since],
+    "SELECT count(*)::int AS n FROM otp_codes WHERE contact = $1 AND created_at > $2",
+    [email, since],
   );
   if ((recent.rows[0]?.n ?? 0) >= OTP_MAX_REQUESTS) throw new HttpError(429, "otp_rate_limited");
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   await d.db.query(
-    "INSERT INTO otp_codes (phone, code_hash, expires_at, created_at) VALUES ($1,$2,$3,$4)",
-    [phone, hashCode(d.key, phone, code), new Date(now.getTime() + OTP_TTL_MS), now],
+    "INSERT INTO otp_codes (contact, code_hash, expires_at, created_at) VALUES ($1,$2,$3,$4)",
+    [email, hashCode(d.key, email, code), new Date(now.getTime() + OTP_TTL_MS), now],
   );
-  await d.sms.send(phone, `رمز التحقق في عِلمك: ${code}`);
+  await d.mail.send(email, "رمز الدخول إلى عِلمك", `رمز التحقق في عِلمك: ${code}\n\nينتهي خلال 5 دقائق. إذا لم تطلبه فتجاهل هذه الرسالة ولا تشاركه مع أحد.`);
   return code;
 }
 
 /**
- * Checks a code against the newest live one for this phone. Every check spends an attempt (5 max),
+ * Checks a code against the newest live one for this address. Every check spends an attempt (5 max),
  * so guessing is capped. Does not consume the code: call consumeOtp once the login is really going ahead.
  */
-export async function checkOtp(d: OtpDeps, phone: string, code: string): Promise<string | null> {
+export async function checkOtp(d: OtpDeps, email: string, code: string): Promise<string | null> {
   const r = await d.db.query<{ id: string; code_hash: string }>(
     `UPDATE otp_codes SET attempts = attempts + 1
       WHERE id = (SELECT id FROM otp_codes
-                   WHERE phone = $1 AND consumed_at IS NULL AND expires_at > $2 AND attempts < $3
+                   WHERE contact = $1 AND consumed_at IS NULL AND expires_at > $2 AND attempts < $3
                    ORDER BY created_at DESC LIMIT 1)
       RETURNING id, code_hash`,
-    [phone, d.now(), OTP_MAX_ATTEMPTS],
+    [email, d.now(), OTP_MAX_ATTEMPTS],
   );
   const row = r.rows[0];
   if (!row) return null;
-  return safeEqual(row.code_hash, hashCode(d.key, phone, code)) ? row.id : null;
+  return safeEqual(row.code_hash, hashCode(d.key, email, code)) ? row.id : null;
 }
 
 /** One-shot: false if someone else already used this code. */

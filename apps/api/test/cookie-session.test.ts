@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { makeHarness, nextPhone } from "./helpers/harness.js";
+import { makeHarness, nextEmail } from "./helpers/harness.js";
 
 let h: Awaited<ReturnType<typeof makeHarness>>;
 beforeAll(async () => {
@@ -8,14 +8,14 @@ beforeAll(async () => {
 
 /** Signs in the way the browser app does: with the client header, expecting a cookie and no token in the body. */
 async function webLogin() {
-  const phone = nextPhone();
+  const email = nextEmail();
   h.clock.advance(11 * 60_000);
-  const rq = await h.call("POST", "/api/auth/otp/request", { body: { phone } });
+  const rq = await h.call("POST", "/api/auth/otp/request", { body: { email } });
   const res = await h.app.inject({
     method: "POST",
     url: "/api/auth/otp/verify",
     headers: { "x-ilmak-client": "web" },
-    payload: { phone, code: rq.body.mock_code, role: "learner", displayName: "متعلم المتصفح" },
+    payload: { email, code: rq.body.mock_code, role: "learner", displayName: "متعلم المتصفح" },
   });
   const set = String(res.headers["set-cookie"] ?? "");
   return { res, body: JSON.parse(res.body), set, cookie: set.split(";")[0]! };
@@ -94,8 +94,8 @@ describe("browser sessions in an HttpOnly cookie", () => {
   it("lets staff finish two-factor with the cookie session", async () => {
     const officer = await h.staff("vetting_officer");
     h.clock.advance(11 * 60_000);
-    const rq = await h.call("POST", "/api/auth/otp/request", { body: { phone: officer.phone } });
-    const v = await h.app.inject({ method: "POST", url: "/api/auth/otp/verify", headers: { "x-ilmak-client": "web" }, payload: { phone: officer.phone, code: rq.body.mock_code } });
+    const rq = await h.call("POST", "/api/auth/otp/request", { body: { email: officer.email } });
+    const v = await h.app.inject({ method: "POST", url: "/api/auth/otp/verify", headers: { "x-ilmak-client": "web" }, payload: { email: officer.email, code: rq.body.mock_code } });
     const cookie = String(v.headers["set-cookie"]).split(";")[0]!;
     expect(JSON.parse(v.body).next).toBe("mfa");
     // Before the code, the session opens nothing.

@@ -1,6 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
-import { makeHarness, nextPhone } from "./helpers/harness.js";
+import { makeHarness, nextEmail } from "./helpers/harness.js";
 import { makeMarket } from "./helpers/market.js";
 
 /**
@@ -26,10 +26,10 @@ beforeAll(async () => {
   tokens.teacher = (await m.teacher()).token;
   for (const r of roles.slice(3)) tokens[r] = (await h.staff(r)).token;
   // A school's login exists only once staff approve its application, so the account is made directly here.
-  const schoolPhone = nextPhone();
-  await h.db.query("INSERT INTO users (role, status, mobile, display_name) VALUES ('school','active',$1,'مدرسة تجريبية')", [schoolPhone]);
-  const rq = await h.call("POST", "/api/auth/otp/request", { body: { phone: schoolPhone } });
-  tokens.school = (await h.call("POST", "/api/auth/otp/verify", { body: { phone: schoolPhone, code: rq.body.mock_code } })).body.token;
+  const schoolPhone = nextEmail();
+  await h.db.query("INSERT INTO users (role, status, email, display_name) VALUES ('school','active',$1,'مدرسة تجريبية')", [schoolPhone]);
+  const rq = await h.call("POST", "/api/auth/otp/request", { body: { email: schoolPhone } });
+  tokens.school = (await h.call("POST", "/api/auth/otp/verify", { body: { email: schoolPhone, code: rq.body.mock_code } })).body.token;
   const banned = await m.verified("learner");
   await h.db.query("UPDATE users SET status = 'banned' WHERE id = $1", [banned.id]);
   tokens.banned = banned.token;

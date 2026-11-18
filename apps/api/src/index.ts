@@ -10,5 +10,5 @@ export * from "./payments/provider.js";
 export * from "./payments/moyasar.js";
 export * from "./payments/webhook.js";
 export * from "./payments/mock.js";
-export * from "./providers/sms.js";
+export * from "./providers/email.js";
 export * from "./providers/nafath.js";

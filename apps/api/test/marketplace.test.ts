@@ -150,7 +150,7 @@ describe("search and slots", () => {
     expect(mine.gender).toBe("female");
     expect(all.body.items.map((x: { teacherId: string }) => x.teacherId)).not.toContain(draft.id);
     const text = JSON.stringify(all.body);
-    expect(text).not.toContain(t.phone);
+    expect(text).not.toContain(t.email);
     expect(text).not.toMatch(/iban|national|mobile/i);
 
     const f = await h.call("GET", `/api/teachers?categoryId=${catId}&gender=female&language=ar&maxPriceHalalas=${PRICE}`, { token: l.token });

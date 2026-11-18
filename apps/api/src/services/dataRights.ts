@@ -134,7 +134,7 @@ export async function eraseUser(db: Db, now: Date, userId: string, storage?: Obj
     const banned = (await tx.query<{ status: string }>("SELECT status FROM users WHERE id = $1", [userId])).rows[0]?.status === "banned";
 
     await tx.query("UPDATE auth_sessions SET revoked_at = $2 WHERE user_id = ANY($1::uuid[]) AND revoked_at IS NULL", [ids, now]);
-    await tx.query("DELETE FROM otp_codes WHERE phone = (SELECT mobile FROM users WHERE id = $1)", [userId]);
+    await tx.query("DELETE FROM otp_codes WHERE contact IN (SELECT email FROM users WHERE id = $1 UNION SELECT mobile FROM users WHERE id = $1)", [userId]);
     await tx.query("DELETE FROM notifications WHERE user_id = ANY($1::uuid[])", [ids]);
     await tx.query("DELETE FROM nafath_requests WHERE user_id = ANY($1::uuid[])", [ids]);
     if (banned) {
@@ -161,7 +161,7 @@ export async function eraseUser(db: Db, now: Date, userId: string, storage?: Obj
       [ids],
     );
     await tx.query("UPDATE reviews SET comment = NULL WHERE booking_id IN (SELECT id FROM bookings WHERE payer_id = ANY($1::uuid[]))", [ids]);
-    // The mobile column is unique and required for adults, so it gets an unreachable placeholder.
+    // The email and mobile columns are unique and one is required for adults, so mobile gets an unreachable placeholder.
     await tx.query(
       `UPDATE users SET display_name = $2, email = NULL, birth_year = NULL, deleted_at = $3,
               mobile = CASE WHEN role = 'minor' THEN NULL ELSE 'deleted:' || id::text END

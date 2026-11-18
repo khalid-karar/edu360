@@ -15,7 +15,7 @@ import { buildApp } from "../http/app.js";
 import { MockPaymentProvider } from "../payments/mock.js";
 import { MockNafathProvider } from "../providers/nafath.js";
 import { MockVideo } from "../video/provider.js";
-import { MockSmsProvider } from "../providers/sms.js";
+import { MockEmailProvider } from "../providers/email.js";
 import { expireStale } from "../services/bookings.js";
 import { encrypt } from "../security/crypto.js";
 import { base32Encode, newTotpSecret, totpAt } from "../security/totp.js";
@@ -46,7 +46,7 @@ const db = pgliteDb(new PGlite());
 await migrate(db);
 
 const payments = new MockPaymentProvider();
-const ctx = { db, hub: new Hub(), storage: new MemoryStorage(), config, sms: new MockSmsProvider(), nafath: new MockNafathProvider(), payments, video: new MockVideo(), mockPayments: payments, now: () => new Date(), limits: { global: 100_000, auth: 100_000 } };
+const ctx = { db, hub: new Hub(), storage: new MemoryStorage(), config, mail: new MockEmailProvider(), nafath: new MockNafathProvider(), payments, video: new MockVideo(), mockPayments: payments, now: () => new Date(), limits: { global: 100_000, auth: 100_000 } };
 
 // ── demo data ──
 const cats = [
@@ -63,14 +63,14 @@ for (const [slug, ar, en, min, max, minors] of cats) {
 }
 
 const teachers = [
-  { name: "محمد القحطاني", gender: "male", phone: "+966500000101", cats: [["quran", 10000]], bio: "معلم قرآن كريم بإجازة متصلة السند برواية حفص، خبرة عشر سنوات في تعليم الأطفال والكبار." },
-  { name: "نورة العتيبي", gender: "female", phone: "+966500000102", cats: [["quran", 9000], ["calligraphy", 8000]], bio: "معلمة قرآن وخط عربي، أدرّس الصغار بأسلوب مبسّط وممتع، خبرة سبع سنوات." },
-  { name: "خالد الشهري", gender: "male", phone: "+966500000103", cats: [["math", 7000], ["coding", 12000]], bio: "مهندس برمجيات ومدرّس رياضيات للمرحلتين المتوسطة والثانوية، وتأسيس البرمجة للمبتدئين." },
-  { name: "ريم الدوسري", gender: "female", phone: "+966500000104", cats: [["english", 8000]], bio: "معلمة لغة إنجليزية حاصلة على IELTS 8.0، أدرّس المحادثة والقواعد لجميع المستويات." },
+  { name: "محمد القحطاني", gender: "male", phone: "500000101@ilmak.test", cats: [["quran", 10000]], bio: "معلم قرآن كريم بإجازة متصلة السند برواية حفص، خبرة عشر سنوات في تعليم الأطفال والكبار." },
+  { name: "نورة العتيبي", gender: "female", phone: "500000102@ilmak.test", cats: [["quran", 9000], ["calligraphy", 8000]], bio: "معلمة قرآن وخط عربي، أدرّس الصغار بأسلوب مبسّط وممتع، خبرة سبع سنوات." },
+  { name: "خالد الشهري", gender: "male", phone: "500000103@ilmak.test", cats: [["math", 7000], ["coding", 12000]], bio: "مهندس برمجيات ومدرّس رياضيات للمرحلتين المتوسطة والثانوية، وتأسيس البرمجة للمبتدئين." },
+  { name: "ريم الدوسري", gender: "female", phone: "500000104@ilmak.test", cats: [["english", 8000]], bio: "معلمة لغة إنجليزية حاصلة على IELTS 8.0، أدرّس المحادثة والقواعد لجميع المستويات." },
 ] as const;
 const day = 86_400_000;
 for (const t of teachers) {
-  const u = await db.query<{ id: string }>("INSERT INTO users (role, status, mobile, display_name) VALUES ('teacher','active',$1,$2) RETURNING id", [t.phone, t.name]);
+  const u = await db.query<{ id: string }>("INSERT INTO users (role, status, email, display_name) VALUES ('teacher','active',$1,$2) RETURNING id", [t.phone, t.name]);
   const id = u.rows[0]!.id;
   await db.query("INSERT INTO identity_verifications (user_id, national_id_hash, full_name, gender, date_of_birth) VALUES ($1,$2,$3,$4,'1988-04-12')", [id, randomBytes(16).toString("hex"), t.name, t.gender]);
   await db.query(
@@ -87,8 +87,8 @@ for (const t of teachers) {
 }
 
 // Finished, paid lessons for the finance and guarantee demos.
-async function seedLesson(learnerId: string, teacherMobile: string, quranCat: number, hoursAgo: number) {
-  const teacherId = (await db.query<{ id: string }>("SELECT id FROM users WHERE mobile = $1", [teacherMobile])).rows[0]!.id;
+async function seedLesson(learnerId: string, teacherEmail: string, quranCat: number, hoursAgo: number) {
+  const teacherId = (await db.query<{ id: string }>("SELECT id FROM users WHERE email = $1", [teacherEmail])).rows[0]!.id;
   const startsAt = new Date(Date.now() - hoursAgo * 3_600_000);
   const b = await db.query<{ id: string }>(
     "INSERT INTO bookings (learner_id, payer_id, teacher_id, category_id, status, starts_at, duration_min, price_halalas) VALUES ($1,$1,$2,$3,'completed',$4,60,10000) RETURNING id",
@@ -105,22 +105,22 @@ async function seedLesson(learnerId: string, teacherMobile: string, quranCat: nu
 }
 {
   // Waleed: one old lesson (ready to pay out) and one inside the dispute window, both with Mohammed.
-  const l = await db.query<{ id: string }>("INSERT INTO users (role, status, mobile, display_name) VALUES ('learner','active','+966500000301','وليد المطيري') RETURNING id");
+  const l = await db.query<{ id: string }>("INSERT INTO users (role, status, email, display_name) VALUES ('learner','active','500000301@ilmak.test','وليد المطيري') RETURNING id");
   await db.query("INSERT INTO identity_verifications (user_id, national_id_hash, full_name, gender, date_of_birth) VALUES ($1,$2,'وليد المطيري','male','1999-01-20')", [l.rows[0]!.id, randomBytes(16).toString("hex")]);
-  await seedLesson(l.rows[0]!.id, "+966500000101", catIds["quran"]!, 5 * 24);
-  await seedLesson(l.rows[0]!.id, "+966500000101", catIds["quran"]!, 4);
+  await seedLesson(l.rows[0]!.id, "500000101@ilmak.test", catIds["quran"]!, 5 * 24);
+  await seedLesson(l.rows[0]!.id, "500000101@ilmak.test", catIds["quran"]!, 4);
   // Hind: her first lesson with Noura finished 3 hours ago, so the first-lesson guarantee applies.
-  const h = await db.query<{ id: string }>("INSERT INTO users (role, status, mobile, display_name) VALUES ('learner','active','+966500000302','هند الزهراني') RETURNING id");
+  const h = await db.query<{ id: string }>("INSERT INTO users (role, status, email, display_name) VALUES ('learner','active','500000302@ilmak.test','هند الزهراني') RETURNING id");
   await db.query("INSERT INTO identity_verifications (user_id, national_id_hash, full_name, gender, date_of_birth) VALUES ($1,$2,'هند الزهراني','female','2001-05-11')", [h.rows[0]!.id, randomBytes(16).toString("hex")]);
-  await seedLesson(h.rows[0]!.id, "+966500000102", catIds["quran"]!, 3);
+  await seedLesson(h.rows[0]!.id, "500000102@ilmak.test", catIds["quran"]!, 3);
   // Sultan: a learner with no history, for trying bookings and discount codes from scratch.
-  const s = await db.query<{ id: string }>("INSERT INTO users (role, status, mobile, display_name) VALUES ('learner','active','+966500000303','سلطان الغامدي') RETURNING id");
+  const s = await db.query<{ id: string }>("INSERT INTO users (role, status, email, display_name) VALUES ('learner','active','500000303@ilmak.test','سلطان الغامدي') RETURNING id");
   await db.query("INSERT INTO identity_verifications (user_id, national_id_hash, full_name, gender, date_of_birth) VALUES ($1,$2,'سلطان الغامدي','male','1999-02-20')", [s.rows[0]!.id, randomBytes(16).toString("hex")]);
 }
 
 // A teacher application waiting for the vetting officer.
 {
-  const u = await db.query<{ id: string }>("INSERT INTO users (role, status, mobile, display_name) VALUES ('teacher','active','+966500000105','سارة الحربي') RETURNING id");
+  const u = await db.query<{ id: string }>("INSERT INTO users (role, status, email, display_name) VALUES ('teacher','active','500000105@ilmak.test','سارة الحربي') RETURNING id");
   const id = u.rows[0]!.id;
   await db.query("INSERT INTO identity_verifications (user_id, national_id_hash, full_name, gender, date_of_birth) VALUES ($1,$2,'سارة الحربي','female','1993-09-02')", [id, randomBytes(16).toString("hex")]);
   await db.query(
@@ -134,24 +134,24 @@ async function seedLesson(learnerId: string, teacherMobile: string, quranCat: nu
 
 // A teacher who has just signed up and verified identity: an empty draft application to fill in, for the browser tests and demos.
 {
-  const u = await db.query<{ id: string }>("INSERT INTO users (role, status, mobile, display_name) VALUES ('teacher','active','+966500000106','ماجد السبيعي') RETURNING id");
+  const u = await db.query<{ id: string }>("INSERT INTO users (role, status, email, display_name) VALUES ('teacher','active','500000106@ilmak.test','ماجد السبيعي') RETURNING id");
   const id = u.rows[0]!.id;
   await db.query("INSERT INTO identity_verifications (user_id, national_id_hash, full_name, gender, date_of_birth) VALUES ($1,$2,'ماجد السبيعي','male','1990-04-11')", [id, randomBytes(16).toString("hex")]);
   await db.query("INSERT INTO teacher_profiles (user_id, status) VALUES ($1,'draft')", [id]);
 }
 
 const staff = [
-  ["vetting_officer", "+966500000201", "موظف التدقيق"],
-  ["safety_officer", "+966500000202", "موظف الأمان"],
-  ["safety_officer", "+966500000206", "موظف الأمان الثاني"],
-  ["finance_officer", "+966500000203", "موظف المالية"],
-  ["finance_officer", "+966500000205", "موظف المالية الثاني"],
-  ["super_admin", "+966500000204", "مدير النظام"],
-  ["super_admin", "+966500000207", "مدير النظام الثاني"],
+  ["vetting_officer", "500000201@ilmak.test", "موظف التدقيق"],
+  ["safety_officer", "500000202@ilmak.test", "موظف الأمان"],
+  ["safety_officer", "500000206@ilmak.test", "موظف الأمان الثاني"],
+  ["finance_officer", "500000203@ilmak.test", "موظف المالية"],
+  ["finance_officer", "500000205@ilmak.test", "موظف المالية الثاني"],
+  ["super_admin", "500000204@ilmak.test", "مدير النظام"],
+  ["super_admin", "500000207@ilmak.test", "مدير النظام الثاني"],
 ] as const;
 const secrets = new Map<string, Buffer>();
 for (const [role, phone, name] of staff) {
-  const u = await db.query<{ id: string }>("INSERT INTO users (role, status, mobile, display_name) VALUES ($1,'active',$2,$3) RETURNING id", [role, phone, name]);
+  const u = await db.query<{ id: string }>("INSERT INTO users (role, status, email, display_name) VALUES ($1,'active',$2,$3) RETURNING id", [role, phone, name]);
   const secret = newTotpSecret();
   secrets.set(phone, secret);
   await db.query("INSERT INTO staff_mfa (user_id, secret_enc) VALUES ($1,$2)", [u.rows[0]!.id, encrypt(config.mfaEncKey, secret.toString("hex"))]);
@@ -169,8 +169,8 @@ sweep.unref();
 await app.listen({ port, host: "127.0.0.1" });
 
 console.log(`ilmak local sandbox on http://127.0.0.1:${port}  (in-memory, resets on restart)`);
-console.log("\nTeachers (log in with the phone; the code is shown on screen):");
+console.log("\nTeachers (log in with the email; the code is shown on screen):");
 for (const t of teachers) console.log(`  ${t.phone}  ${t.name}`);
-console.log("\nStaff (phone + current authenticator code):");
+console.log("\nStaff (email + current authenticator code):");
 for (const [role, phone] of staff) console.log(`  ${phone}  ${role}  secret ${base32Encode(secrets.get(phone)!)}  code now ${totpAt(secrets.get(phone)!, Math.floor(Date.now() / 30_000))}`);
-console.log("\nNew learners and guardians sign up with any phone +9665XXXXXXXX. Nafath ID: any 10 digits starting 1 not ending in 0 or 9.");
+console.log("\nNew learners and guardians sign up with any email address. Nafath ID: any 10 digits starting 1 not ending in 0 or 9.");

@@ -4,7 +4,7 @@ This is the checklist for the first real server. It describes what the code supp
 
 ## 0. Know what is still mock
 
-`PROVIDERS`, `PAYMENTS` and `VIDEO` must stay `mock` until the real integrations exist (Nafath, SMS, Moyasar, LiveKit). The API refuses to start with a real `PROVIDERS` value on purpose. Do not put real customers on a server running mocks: anyone can "pay" and sign in with the code shown on screen.
+`PROVIDERS` (Nafath) must stay `mock`: the API refuses to start otherwise. `PAYMENTS` stays `mock` until Moyasar is activated. `VIDEO=livekit` and `MAIL_MODE=smtp` are real and need their values in the env file. Sign-in is by **email code**: with `MAIL=mock` the code is shown on screen and anyone can sign in as anyone, so do not put real customers on a server until `MAIL_MODE=smtp` works. Staff are created with `node dist/cli/create-staff.js --email ... --name ... --role super_admin`.
 
 ## 1. Machine and network
 
@@ -80,4 +80,4 @@ deploy/templates/restore.sh /var/backups/ilmak/ilmak-db-XXXX.dump ilmak_check
 
 ## 7. Before real users (owner decisions)
 
-Real Nafath, SMS and payment accounts; a lawyer's review of the terms, privacy notice and the schools channel; an independent penetration test; an Arabic child-safety classifier; Terraform or similar so the server can be rebuilt from code; a decision on who is on call.
+Real Nafath and payment accounts, and a working email relay with SPF/DKIM on the sending domain; a lawyer's review of the terms, privacy notice and the schools channel; an independent penetration test; an Arabic child-safety classifier; Terraform or similar so the server can be rebuilt from code; a decision on who is on call.

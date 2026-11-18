@@ -251,6 +251,6 @@ const MESSAGES: Record<string, string> = {
   not_payable: "لا يمكن دفع هذا الحجز الآن.",
   invalid_school_code: "رمز المدرسة غير صحيح أو غير معتمد.",
   school_already_applied: "يوجد طلب سابق لهذه المدرسة.",
-  mobile_in_use: "رقم الجوال مستخدم في حساب آخر.",
+  email_in_use: "هذا البريد مستخدم في حساب آخر.",
 };
 export const errorText = (e: unknown) => (e instanceof ApiError ? (MESSAGES[e.code] ?? `تعذّر تنفيذ الطلب (${e.code})`) : MESSAGES.server_error!);

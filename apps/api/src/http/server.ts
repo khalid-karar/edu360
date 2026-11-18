@@ -5,10 +5,10 @@ import { migrate } from "../db/migrate.js";
 import { MockPaymentProvider } from "../payments/mock.js";
 import { MoyasarProvider } from "../payments/moyasar.js";
 import { MockNafathProvider } from "../providers/nafath.js";
-import { MockSmsProvider } from "../providers/sms.js";
+import { MockEmailProvider, SmtpEmailProvider } from "../providers/email.js";
 import { expireStale } from "../services/bookings.js";
 import { liftExpiredSuspensions } from "../services/trust.js";
-import { deliverSms, sendReminders } from "../services/notifications.js";
+import { deliverEmails, sendReminders } from "../services/notifications.js";
 import { processDeletions } from "../services/dataRights.js";
 import { LiveKitVideo, MockVideo } from "../video/provider.js";
 import { Metrics } from "./metrics.js";
@@ -52,7 +52,7 @@ const ctx = {
   checks,
   scanner: config.clamd ? new ClamdScanner(config.clamd.host, config.clamd.port) : undefined,
   config,
-  sms: new MockSmsProvider(),
+  mail: config.mail ? new SmtpEmailProvider(config.mail) : new MockEmailProvider(),
   nafath: new MockNafathProvider(),
   video: config.video?.kind === "livekit" ? new LiveKitVideo(config.video.url, config.video.apiKey, config.video.apiSecret) : new MockVideo(),
   payments: mockPayments ?? new MoyasarProvider(config.moyasarSecretKey!),
@@ -72,7 +72,7 @@ const sweep = setInterval(() => {
   );
   liftExpiredSuspensions(ctx.db, ctx.now()).catch((e) => console.error("suspension sweep failed", e));
   processDeletions(ctx.db, ctx.now(), ctx.storage).then((r) => r.erased > 0 && console.log(`erased ${r.erased} accounts`), (e) => console.error("erasure sweep failed", e));
-  sendReminders(ctx.db, ctx.now()).then(() => deliverSms(ctx.db, ctx.sms, ctx.now())).catch((e) => console.error("notification sweep failed", e));
+  sendReminders(ctx.db, ctx.now()).then(() => deliverEmails(ctx.db, ctx.mail, ctx.now())).catch((e) => console.error("notification sweep failed", e));
 }, 60_000);
 sweep.unref();
 

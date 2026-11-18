@@ -24,7 +24,7 @@ describe("questions before booking", () => {
     const tInbox = (await h.call("GET", "/api/inquiries", { token: t.token })).body.items;
     expect(tInbox).toHaveLength(1);
     expect(tInbox[0]).toMatchObject({ id, viewerRole: "teacher", unread: true, other: { displayName: expect.any(String) } });
-    expect(JSON.stringify(tInbox)).not.toContain(l.phone);
+    expect(JSON.stringify(tInbox)).not.toContain(l.email);
     expect((await h.call("GET", "/api/notifications", { token: t.token })).body.items.some((n: { kind: string }) => n.kind === "inquiry_message")).toBe(true);
 
     expect((await h.call("GET", `/api/inquiries/${id}/messages`, { token: t.token })).body.items).toHaveLength(1);
