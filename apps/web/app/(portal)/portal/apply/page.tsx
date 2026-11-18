@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { ErrorNote, Field, Shell, Spinner } from "../../../../components/portal-ui";
-import { api } from "../../../../lib/api";
+import { DOC_ACCEPT, VIDEO_ACCEPT, api, fileProblem, uploadFile } from "../../../../lib/api";
 import { dayLabel, sar } from "../../../../lib/format";
 import { useSession } from "../../../../lib/session";
 
@@ -30,11 +30,27 @@ const CODE = [
   "المخالفات تتصاعد: تنبيه، ثم إيقاف 14 يوماً مع تجميد التحويلات، ثم حظر.",
 ];
 
-/** No storage is wired yet: only the file name is recorded, under the key shape the API requires. */
-const keyFor = (userId: string, file: File | undefined, fallback: string) => {
-  const base = (file?.name ?? fallback).replace(/[^A-Za-z0-9._-]/g, "") || fallback;
-  return `uploads/${userId}/${Date.now()}-${base}`.slice(0, 200);
-};
+/** A file input that checks type and size before anything is sent, and shows what was chosen. */
+function FilePick({ kind, file, onPick, progress, resetKey }: { kind: "doc" | "video"; file: File | undefined; onPick: (f: File | undefined) => void; progress?: number | null; resetKey?: number }) {
+  const [problem, setProblem] = useState<string | null>(null);
+  return (
+    <div className="stack">
+      <input
+        key={resetKey}
+        type="file"
+        accept={kind === "video" ? VIDEO_ACCEPT : DOC_ACCEPT}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          const p = f ? fileProblem(f, kind) : null;
+          setProblem(p);
+          onPick(f && !p ? f : undefined);
+        }}
+      />
+      {problem && <span className="note err" role="alert">{problem}</span>}
+      {file && progress != null && <progress value={progress} max={1} aria-label="تقدّم الرفع" />}
+    </div>
+  );
+}
 
 export default function Apply() {
   return (
@@ -78,10 +94,10 @@ function Body() {
       {editable && (
         <>
           <div className="note sand">سياسة المنصة: الدرس الأول لكل متعلّم معك مضمون. إن لم يناسبه استرد مبلغه كاملاً، وتعوّضك المنصة بنصف صافي ربحك من ذلك الدرس. لا يُحسب هذا مخالفة عليك.</div>
-          <p className="muted small">رفع الملفات تجريبي حالياً: يُسجَّل اسم الملف فقط حتى يُربط التخزين.</p>
-          <ProfileForm me={me} userId={user.id} onSaved={load} />
+          <p className="muted small">الملفات المقبولة: المستندات PDF أو صورة PNG/JPEG حتى 5 ميجا، والفيديو MP4 أو WebM أو MOV حتى 50 ميجا. يطّلع عليها فريق التدقيق فقط.</p>
+          <ProfileForm me={me} onSaved={load} />
           <CategoriesForm me={me} cats={cats} onSaved={load} />
-          {me.categories.length > 0 && <Credentials me={me} userId={user.id} onSaved={load} />}
+          {me.categories.length > 0 && <Credentials me={me} onSaved={load} />}
           <Conduct me={me} onSaved={load} />
           <Payout me={me} onSaved={load} />
           <Submit me={me} onSaved={load} />
@@ -111,18 +127,24 @@ function Saved({ s }: { s: { err: unknown; ok: boolean } }) {
   return <>{<ErrorNote error={s.err} />}{s.ok && <div className="note info">تم الحفظ.</div>}</>;
 }
 
-function ProfileForm({ me, userId, onSaved }: { me: Me; userId: string; onSaved: () => void }) {
+function ProfileForm({ me, onSaved }: { me: Me; onSaved: () => void }) {
   const [bio, setBio] = useState(me.profile.bio ?? "");
   const [langs, setLangs] = useState<string[]>(me.profile.languages.length ? me.profile.languages : ["ar"]);
   const [doc, setDoc] = useState(me.profile.freelanceDocumentNo ?? "");
   const [video, setVideo] = useState<File | undefined>();
   const [noc, setNoc] = useState<File | undefined>();
+  const [removeNoc, setRemoveNoc] = useState(false);
+  const [pct, setPct] = useState<{ video: number | null; noc: number | null }>({ video: null, noc: null });
+  const [round, setRound] = useState(0); // remounts the file inputs after a save
   const s = useSave(onSaved);
-  const save = () => s.run(() => api("PUT", "/teacher/profile", {
-    bio: bio.trim(), languages: langs, freelanceDocumentNo: doc.trim(),
-    introVideoKey: keyFor(userId, video, "intro.mp4"),
-    ...(noc ? { employerNocKey: keyFor(userId, noc, "noc.pdf") } : {}),
-  }));
+  const save = () => s.run(async () => {
+    const body: Record<string, unknown> = { bio: bio.trim(), languages: langs, freelanceDocumentNo: doc.trim() };
+    if (video) body.introVideoKey = (await uploadFile(video, (f) => setPct((p) => ({ ...p, video: f })))).fileKey;
+    if (noc) body.employerNocKey = (await uploadFile(noc, (f) => setPct((p) => ({ ...p, noc: f })))).fileKey;
+    else if (removeNoc) body.employerNocKey = null;
+    await api("PUT", "/teacher/profile", body);
+    setVideo(undefined); setNoc(undefined); setRemoveNoc(false); setPct({ video: null, noc: null }); setRound((n) => n + 1);
+  });
   return (
     <div className="card stack">
       <h3>1. التعريف بك</h3>
@@ -131,10 +153,17 @@ function ProfileForm({ me, userId, onSaved }: { me: Me; userId: string; onSaved:
         <div className="row">{LANGS.map(([k, l]) => <label key={k} className="chip"><input type="checkbox" checked={langs.includes(k)} onChange={(e) => setLangs(e.target.checked ? [...langs, k] : langs.filter((x) => x !== k))} /> {l}</label>)}</div>
       </div>
       <Field label="رقم وثيقة العمل الحر"><input className="ltr" value={doc} onChange={(e) => setDoc(e.target.value)} /></Field>
-      <Field label="فيديو تعريفي قصير" hint={me.profile.hasIntroVideo ? "سبق رفعه. اختر ملفاً جديداً للاستبدال، أو ارفع نفس الملف عند الحفظ." : undefined}><input type="file" accept="video/*" onChange={(e) => setVideo(e.target.files?.[0])} /></Field>
-      <Field label="خطاب عدم ممانعة جهة العمل (اختياري، للموظفين)"><input type="file" accept="application/pdf,image/*" onChange={(e) => setNoc(e.target.files?.[0])} /></Field>
+      <Field label="فيديو تعريفي قصير" hint={me.profile.hasIntroVideo ? "✓ مرفوع. اختر ملفاً جديداً فقط إن أردت استبداله." : "مطلوب. دقيقة أو دقيقتان تعرّف فيهما بنفسك وأسلوبك في التدريس."}>
+        <FilePick kind="video" file={video} onPick={setVideo} progress={pct.video} resetKey={round} />
+      </Field>
+      <Field label="خطاب عدم ممانعة جهة العمل (اختياري، للموظفين)" hint={me.profile.hasEmployerNoc ? "✓ مرفوع. اختر ملفاً جديداً للاستبدال." : undefined}>
+        <FilePick kind="doc" file={noc} onPick={(f) => { setNoc(f); if (f) setRemoveNoc(false); }} progress={pct.noc} resetKey={round} />
+      </Field>
+      {me.profile.hasEmployerNoc && !noc && (
+        <label className="row"><input type="checkbox" checked={removeNoc} onChange={(e) => setRemoveNoc(e.target.checked)} /> حذف الخطاب المرفوع</label>
+      )}
       <Saved s={s} />
-      <div><button className="btn" disabled={s.busy || bio.trim().length < 40 || !langs.length || doc.trim().length < 4} onClick={save}>حفظ</button></div>
+      <div><button className="btn" disabled={s.busy || bio.trim().length < 40 || !langs.length || doc.trim().length < 4 || !(me.profile.hasIntroVideo || video)} onClick={save}>{s.busy && (pct.video != null || pct.noc != null) ? "جارٍ الرفع…" : "حفظ"}</button></div>
     </div>
   );
 }
@@ -167,25 +196,33 @@ function CategoriesForm({ me, cats, onSaved }: { me: Me; cats: Cat[]; onSaved: (
   );
 }
 
-function Credentials({ me, userId, onSaved }: { me: Me; userId: string; onSaved: () => void }) {
+function Credentials({ me, onSaved }: { me: Me; onSaved: () => void }) {
   const [kind, setKind] = useState<Record<number, string>>({});
   const [file, setFile] = useState<Record<number, File | undefined>>({});
+  const [pct, setPct] = useState<Record<number, number | null>>({});
+  const [round, setRound] = useState(0);
   const s = useSave(onSaved);
-  const add = (categoryId: number) => s.run(() => api("POST", "/teacher/credentials", { categoryId, kind: kind[categoryId] ?? "degree", fileKey: keyFor(userId, file[categoryId], "doc.pdf") }));
+  const add = (categoryId: number) => s.run(async () => {
+    const f = file[categoryId]!;
+    const up = await uploadFile(f, (x) => setPct((p) => ({ ...p, [categoryId]: x })));
+    await api("POST", "/teacher/credentials", { categoryId, kind: kind[categoryId] ?? "degree", fileKey: up.fileKey });
+    setFile((p) => ({ ...p, [categoryId]: undefined })); setPct((p) => ({ ...p, [categoryId]: null })); setRound((n) => n + 1);
+  });
   return (
     <div className="card stack">
       <h3>3. المستندات</h3>
-      <p className="muted small">لكل تخصص مستند واحد على الأقل يثبت أهليتك (شهادة أو إجازة أو أعمال).</p>
+      <p className="muted small">لكل تخصص مستند واحد على الأقل يثبت أهليتك (شهادة أو إجازة أو أعمال). «فيديو تجريبي» يُرفع كفيديو، وغيره كمستند أو صورة.</p>
       {me.categories.map((c) => {
         const mine = me.credentials.filter((x) => x.categoryId === c.categoryId);
+        const k = kind[c.categoryId] ?? "degree";
         return (
           <div key={c.categoryId} className="stack">
             <b>{c.nameAr}</b>
             {mine.length === 0 && <span className="muted small">لا مستندات بعد.</span>}
-            {mine.map((x) => <span key={x.id} className="chip">{KINDS.find(([k]) => k === x.kind)?.[1] ?? x.kind}</span>)}
-            <div className="row">
-              <select value={kind[c.categoryId] ?? "degree"} onChange={(e) => setKind({ ...kind, [c.categoryId]: e.target.value })}>{KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
-              <input type="file" onChange={(e) => setFile({ ...file, [c.categoryId]: e.target.files?.[0] })} />
+            {mine.map((x) => <span key={x.id} className="chip">{KINDS.find(([kk]) => kk === x.kind)?.[1] ?? x.kind}</span>)}
+            <div className="row wrap">
+              <select value={k} onChange={(e) => { setKind({ ...kind, [c.categoryId]: e.target.value }); setFile({ ...file, [c.categoryId]: undefined }); setRound((n) => n + 1); }}>{KINDS.map(([kk, l]) => <option key={kk} value={kk}>{l}</option>)}</select>
+              <FilePick kind={k === "sample_video" ? "video" : "doc"} file={file[c.categoryId]} onPick={(f) => setFile({ ...file, [c.categoryId]: f })} progress={pct[c.categoryId] ?? null} resetKey={round} />
               <button className="btn ghost" disabled={s.busy || !file[c.categoryId]} onClick={() => add(c.categoryId)}>إضافة</button>
             </div>
           </div>

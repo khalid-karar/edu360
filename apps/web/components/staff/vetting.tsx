@@ -1,12 +1,13 @@
 "use client";
 import { useState } from "react";
 import { ErrorNote, Field, Spinner } from "../portal-ui";
+import { openProtectedFile } from "../../lib/api";
 import { dateTime } from "../../lib/format";
 import { useAct, useLoad } from "./common";
 
 interface QueueItem { teacherId: string; displayName: string; status: string; submittedAt: string; categories: number; pendingCredentials: number }
 interface Detail {
-  teacher: { status: string; bio: string | null; languages: string[]; freelance_document_no: string | null; employer_noc_url: string | null; intro_video_url: string | null; code_of_conduct_version: string | null; adults_only: boolean; submitted_at: string; display_name: string; full_name: string | null; gender: string | null };
+  teacher: { status: string; bio: string | null; languages: string[]; freelance_document_no: string | null; has_employer_noc: boolean; has_intro_video: boolean; code_of_conduct_version: string | null; adults_only: boolean; submitted_at: string; display_name: string; full_name: string | null; gender: string | null };
   categories: { category_id: number; name_ar: string; price_halalas: number; approved: boolean }[];
   credentials: { id: string; category_id: number; kind: string; file_url: string; verdict: string | null }[];
   reviews: { decision: string; rubric: Record<string, number>; reason: string | null; created_at: string }[];
@@ -14,6 +15,18 @@ interface Detail {
 const RUBRIC: [string, string][] = [["knowledge", "المعرفة بالمادة"], ["communication", "التواصل"], ["conduct", "السلوك والأمانة"], ["tech", "الجاهزية التقنية"]];
 const KIND: Record<string, string> = { degree: "شهادة جامعية", ijazah: "إجازة", certificate: "شهادة تخصص", portfolio: "أعمال سابقة", sample_video: "فيديو تجريبي" };
 const DECISION: Record<string, string> = { approved: "اعتماد", conditional: "اعتماد مشروط (للكبار فقط)", rejected: "رفض" };
+
+/** Opens a scan or video through the audited endpoint. Every open is recorded against the officer. */
+function FileLink({ label, path }: { label: string; path: string }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<unknown>(null);
+  return (
+    <span className="stack">
+      <button className="btn ghost" disabled={busy} onClick={async () => { setBusy(true); setErr(null); try { await openProtectedFile(path); } catch (e) { setErr(e); } finally { setBusy(false); } }}>{busy ? "…" : `عرض: ${label}`}</button>
+      <ErrorNote error={err} />
+    </span>
+  );
+}
 
 export function VettingConsole() {
   const [sel, setSel] = useState<string | null>(null);
@@ -69,7 +82,10 @@ function Review({ id, onBack }: { id: string; onBack: () => void }) {
         <div className="row wrap"><span className="chip">{t.full_name ?? "—"}</span><span className="chip">{t.gender === "female" ? "أنثى" : t.gender === "male" ? "ذكر" : "—"}</span><span className="chip">اللغات: {t.languages.join("، ")}</span><span className="chip">الحالة: {t.status === "interview" ? "مقابلة" : "مقدّم"}</span></div>
         {t.bio && <p>{t.bio}</p>}
         <span className="muted small">وثيقة العمل الحر: {t.freelance_document_no ?? "—"} · نسخة الميثاق: {t.code_of_conduct_version ?? "—"}</span>
-        {t.intro_video_url && <a href={t.intro_video_url} target="_blank" rel="noreferrer">فيديو التعريف</a>}
+        <div className="row wrap">
+          {t.has_intro_video ? <FileLink label="فيديو التعريف" path={`/admin/vetting/teachers/${id}/intro-video`} /> : <span className="muted small">لا فيديو تعريفي.</span>}
+          {t.has_employer_noc && <FileLink label="خطاب عدم الممانعة" path={`/admin/vetting/teachers/${id}/employer-noc`} />}
+        </div>
         <span className="muted small">رقم الهوية والآيبان والجوال مخفية عن المدقّق عمداً.</span>
       </div>
 
@@ -83,7 +99,7 @@ function Review({ id, onBack }: { id: string; onBack: () => void }) {
               {docs.length === 0 && <span className="muted small">لا مستندات مرفوعة.</span>}
               {docs.map((x) => (
                 <div key={x.id} className="row between wrap">
-                  <a href={x.file_url} target="_blank" rel="noreferrer">{KIND[x.kind] ?? x.kind}</a>
+                  <FileLink label={KIND[x.kind] ?? x.kind} path={`/admin/vetting/credentials/${x.id}/file`} />
                   {x.verdict ? <span className={`badge ${x.verdict === "accepted" ? "ok" : "bad"}`}>{x.verdict === "accepted" ? "مقبول" : "مرفوض"}</span> : (
                     <span className="row"><button className="btn" disabled={act.busy} onClick={() => review(x.id, "accepted")}>قبول</button><button className="btn danger" disabled={act.busy} onClick={() => review(x.id, "rejected")}>رفض</button></span>
                   )}

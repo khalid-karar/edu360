@@ -41,7 +41,66 @@ export async function api<T = any>(method: "GET" | "POST" | "PUT" | "PATCH" | "D
   return json as T;
 }
 
+/** Mirrors the server's limits so people hear about a bad file before a long upload, not after it. */
+export const DOC_MAX_BYTES = 5_000_000;
+export const VIDEO_MAX_BYTES = 50_000_000;
+export const DOC_ACCEPT = "application/pdf,image/png,image/jpeg";
+export const VIDEO_ACCEPT = "video/mp4,video/webm,video/quicktime";
+const DOC_TYPES = DOC_ACCEPT.split(",");
+const VIDEO_TYPES = VIDEO_ACCEPT.split(",");
+
+/** A message in Arabic when the file would be refused, otherwise null. */
+export function fileProblem(file: File, kind: "doc" | "video"): string | null {
+  const okTypes = kind === "video" ? VIDEO_TYPES : DOC_TYPES;
+  if (!okTypes.includes(file.type)) return kind === "video" ? "الفيديو يجب أن يكون MP4 أو WebM أو MOV." : "المستند يجب أن يكون PDF أو صورة PNG أو JPEG.";
+  const max = kind === "video" ? VIDEO_MAX_BYTES : DOC_MAX_BYTES;
+  if (file.size > max) return `حجم الملف أكبر من ${max / 1_000_000} ميجا.`;
+  if (file.size === 0) return "الملف فارغ.";
+  return null;
+}
+
+export interface UploadedFile { id: string; fileKey: string; contentType: string; size: number }
+
+/** Sends the file's raw bytes. XHR rather than fetch only because it reports progress, which matters for a video. */
+export function uploadFile(file: File, onProgress?: (fraction: number) => void): Promise<UploadedFile> {
+  return new Promise((resolve, reject) => {
+    const token = getToken();
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${BASE}/api/teacher/uploads`);
+    xhr.setRequestHeader("content-type", file.type);
+    if (token) xhr.setRequestHeader("authorization", `Bearer ${token}`);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(e.loaded / e.total); };
+    xhr.onerror = () => reject(new ApiError(0, "network"));
+    xhr.onload = () => {
+      let json: any = null;
+      try { json = JSON.parse(xhr.responseText); } catch { /* not JSON */ }
+      if (xhr.status >= 200 && xhr.status < 300 && json?.fileKey) resolve(json as UploadedFile);
+      else reject(new ApiError(xhr.status, xhr.status === 413 ? "too_large" : (json?.error ?? "server_error"), json?.details));
+    };
+    xhr.send(file);
+  });
+}
+
+/** Opens a staff-only file in a new tab. The request carries the bearer token, so a plain link would not work. */
+export async function openProtectedFile(path: string): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${BASE}/api${path}`, { headers: token ? { authorization: `Bearer ${token}` } : {} }).catch(() => null);
+  if (!res) throw new ApiError(0, "network");
+  if (!res.ok) throw new ApiError(res.status, (await res.json().catch(() => null))?.error ?? "server_error");
+  const url = URL.createObjectURL(await res.blob());
+  window.open(url, "_blank", "noopener");
+  setTimeout(() => URL.revokeObjectURL(url), 5 * 60_000);
+}
+
 const MESSAGES: Record<string, string> = {
+  empty_file: "الملف فارغ.",
+  too_large: "حجم الملف أكبر من المسموح.",
+  unsupported_file_type: "نوع الملف غير مدعوم أو محتواه لا يطابق امتداده.",
+  too_many_uploads: "وصلت للحد الأقصى من الملفات المرفوعة (20).",
+  too_many_videos: "وصلت للحد الأقصى من الفيديوهات (3).",
+  unknown_upload: "الملف غير موجود. ارفعه من جديد.",
+  wrong_file_kind: "نوع الملف لا يناسب هذا الحقل.",
+  intro_video_required: "ارفع الفيديو التعريفي أولاً.",
   score_too_low: "المجموع أقل من حد القبول (16 من 20).",
   reason_required: "اكتب السبب.",
   no_accepted_credential: "لا يمكن الاعتماد بلا مستند مقبول واحد على الأقل.",

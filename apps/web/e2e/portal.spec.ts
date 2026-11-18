@@ -138,3 +138,38 @@ test("pages load under the security headers without CSP violations or console er
   await expect(page.locator("text=بياناتي وخصوصيتي")).toBeVisible();
   expect(problems).toEqual([]);
 });
+
+test("a new teacher uploads an intro video and a certificate, and bad files are refused before sending", async ({ page }) => {
+  const clean = expectNoPageErrors(page);
+  await signIn(page, "+966500000106");
+  await page.goto("/portal/apply");
+  await expect(page.locator("text=ينقصك")).toBeVisible();
+
+  const mp4 = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from("ftypmp42"), Buffer.alloc(64)]);
+  const pdf = Buffer.from("%PDF-1.7\n1 0 obj\n");
+
+  // Step 1: profile with the intro video. A text file in the video field is refused on the spot.
+  await page.fill("textarea", "معلم رياضيات وفيزياء للمرحلة الثانوية، خبرة ثماني سنوات في التدريس الخصوصي والتحضير للاختبارات.");
+  await page.fill("input.ltr", "FL-900100");
+  const video = page.locator("input[type=file]").first();
+  await video.setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hello") });
+  await expect(page.locator("text=الفيديو يجب أن يكون")).toBeVisible();
+  await expect(page.locator("button:has-text('حفظ')").first()).toBeDisabled();
+  await video.setInputFiles({ name: "intro.mp4", mimeType: "video/mp4", buffer: mp4 });
+  await page.locator("button:has-text('حفظ')").first().click();
+  await expect(page.locator("text=تم الحفظ").first()).toBeVisible();
+  await expect(page.locator("text=✓ مرفوع").first()).toBeVisible();
+  await expect(page.locator("text=ينقصك").first()).not.toContainText("فيديو التعريف");
+
+  // Step 2: pick a category, then step 3: upload a certificate scan for it.
+  await page.locator("label:has-text('قرآن')").first().locator("input[type=checkbox]").check().catch(async () => {
+    await page.locator("input[type=checkbox]").nth(7).check();
+  });
+  await page.click("button:has-text('حفظ التخصصات')");
+  await expect(page.locator("h3:has-text('3. المستندات')")).toBeVisible();
+  const scan = page.locator("h3:has-text('3. المستندات')").locator("xpath=..").locator("input[type=file]").first();
+  await scan.setInputFiles({ name: "ijazah.pdf", mimeType: "application/pdf", buffer: pdf });
+  await page.locator("h3:has-text('3. المستندات')").locator("xpath=..").locator("button:has-text('إضافة')").click();
+  await expect(page.locator("h3:has-text('3. المستندات')").locator("xpath=..").locator(".chip:has-text('شهادة جامعية')")).toBeVisible();
+  clean();
+});

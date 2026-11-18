@@ -126,6 +126,14 @@ async function seedLesson(learnerId: string, teacherMobile: string, quranCat: nu
   await db.query("INSERT INTO credentials (teacher_id, category_id, kind, file_url) VALUES ($1,$2,'degree','uploads/demo-degree.pdf')", [id, catIds["math"]!]);
 }
 
+// A teacher who has just signed up and verified identity: an empty draft application to fill in, for the browser tests and demos.
+{
+  const u = await db.query<{ id: string }>("INSERT INTO users (role, status, mobile, display_name) VALUES ('teacher','active','+966500000106','ماجد السبيعي') RETURNING id");
+  const id = u.rows[0]!.id;
+  await db.query("INSERT INTO identity_verifications (user_id, national_id_hash, full_name, gender, date_of_birth) VALUES ($1,$2,'ماجد السبيعي','male','1990-04-11')", [id, randomBytes(16).toString("hex")]);
+  await db.query("INSERT INTO teacher_profiles (user_id, status) VALUES ($1,'draft')", [id]);
+}
+
 const staff = [
   ["vetting_officer", "+966500000201", "موظف التدقيق"],
   ["safety_officer", "+966500000202", "موظف الأمان"],
