@@ -1,17 +1,19 @@
 "use client";
 import { useState } from "react";
 import { ErrorNote, Field, Spinner } from "../portal-ui";
+import { saveProtectedFile } from "../../lib/api";
 import { dateTime, sar } from "../../lib/format";
 import { Tabs, useAct, useLoad } from "./common";
 
 export function FinanceConsole({ meId }: { meId: string }) {
-  const [tab, setTab] = useState<"disputes" | "run" | "payouts">("disputes");
+  const [tab, setTab] = useState<"disputes" | "run" | "payouts" | "export">("disputes");
   return (
     <>
-      <Tabs value={tab} onChange={setTab} items={[{ id: "disputes", label: "الاعتراضات" }, { id: "run", label: "دفعة التحويل" }, { id: "payouts", label: "التحويلات" }]} />
+      <Tabs value={tab} onChange={setTab} items={[{ id: "disputes", label: "الاعتراضات" }, { id: "run", label: "دفعة التحويل" }, { id: "payouts", label: "التحويلات" }, { id: "export", label: "تصدير" }]} />
       {tab === "disputes" && <Disputes />}
       {tab === "run" && <Run />}
       {tab === "payouts" && <Payouts meId={meId} />}
+      {tab === "export" && <Export />}
     </>
   );
 }
@@ -202,5 +204,29 @@ function Payout({ id, meId, onBack }: { id: string; meId: string; onBack: () => 
         </div>
       )}
     </>
+  );
+}
+
+function Export() {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Riyadh" }).format(new Date());
+  const [from, setFrom] = useState(today.slice(0, 8) + "01");
+  const [to, setTo] = useState(today);
+  const [err, setErr] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+  async function go() {
+    setBusy(true);
+    setErr(null);
+    try { await saveProtectedFile(`/admin/finance/export?from=${from}&to=${to}`, `ilmak-finance-${from}_${to}.csv`); } catch (e) { setErr(e); } finally { setBusy(false); }
+  }
+  return (
+    <div className="card stack">
+      <p className="muted small">كل المدفوعات المحصّلة في المدة (بتوقيت الرياض) لجدول المحاسب. الملف يحوي أسماء المعلّمين، وكل تصدير يُسجَّل باسمك.</p>
+      <div className="row">
+        <Field label="من"><input type="date" className="ltr" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
+        <Field label="إلى"><input type="date" className="ltr" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
+      </div>
+      <ErrorNote error={err} />
+      <div><button className="btn" disabled={busy || !from || !to} onClick={go}>تنزيل CSV</button></div>
+    </div>
   );
 }

@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { FastifyPluginAsync } from "fastify";
@@ -12,6 +13,25 @@ export const miscRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
   app.get("/api/health", async () => {
     await ctx.db.query("SELECT 1");
     return { ok: true, providers: ctx.config.providers, time: ctx.now().toISOString() };
+  });
+
+  // For a load balancer or a deploy script: 200 only when the database and every extra check answer.
+  app.get("/api/ready", async (_req, reply) => {
+    const failed: string[] = [];
+    await ctx.db.query("SELECT 1").catch(() => failed.push("database"));
+    for (const [name, check] of Object.entries(ctx.checks ?? {})) await check().catch(() => failed.push(name));
+    if (failed.length) return reply.code(503).send({ ok: false, failed });
+    return { ok: true };
+  });
+
+  // Prometheus text. Off unless METRICS_TOKEN is set, and needs it as a bearer token.
+  app.get("/api/metrics", async (req, reply) => {
+    const token = ctx.config.metricsToken;
+    if (!token || !ctx.metrics) return reply.code(404).send({ ok: false, error: "not_found" });
+    const given = Buffer.from(String(req.headers.authorization ?? "").replace(/^Bearer /, ""));
+    const want = Buffer.from(token);
+    if (given.length !== want.length || !timingSafeEqual(given, want)) return reply.code(401).send({ ok: false, error: "unauthorized" });
+    return reply.header("content-type", "text/plain; version=0.0.4; charset=utf-8").send(ctx.metrics.render({ ilmak_websocket_connections: ctx.hub?.size ?? 0 }));
   });
 
   // Coming-soon waitlist. Plain form posts (the site) and JSON both work. The honeypot field fools simple bots.

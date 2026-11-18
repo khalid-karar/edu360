@@ -1,0 +1,26 @@
+[Unit]
+Description=Ilmak API
+After=network.target postgresql.service redis.service
+Wants=postgresql.service
+
+[Service]
+User=ilmak
+WorkingDirectory=/opt/ilmak/apps/api
+EnvironmentFile=/etc/ilmak/ilmak.env
+ExecStart=/usr/bin/node dist/http/server.js
+Restart=always
+RestartSec=2
+# Hardening. The API only needs to write where uploads and the waitlist live.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/ilmak
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

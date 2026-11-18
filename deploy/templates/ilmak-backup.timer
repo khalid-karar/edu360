@@ -1,0 +1,8 @@
+[Unit]
+Description=Ilmak nightly backup timer
+[Timer]
+# 02:30 Riyadh time is 23:30 UTC.
+OnCalendar=*-*-* 23:30:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target

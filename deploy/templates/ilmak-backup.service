@@ -1,0 +1,7 @@
+[Unit]
+Description=Ilmak nightly backup
+[Service]
+Type=oneshot
+User=postgres
+EnvironmentFile=-/etc/ilmak/backup.env
+ExecStart=/opt/ilmak/deploy/templates/backup.sh

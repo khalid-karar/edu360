@@ -1,3 +1,5 @@
+import type { Metrics } from "./metrics.js";
+import type { Scanner } from "../scan/scanner.js";
 import type { ObjectStorage } from "../storage/storage.js";
 import type { RateStore } from "./rate-store.js";
 import type { Config } from "../config.js";
@@ -13,6 +15,12 @@ import type { SmsProvider } from "../providers/sms.js";
 export interface Ctx {
   db: Db;
   storage: ObjectStorage;
+  /** Request counters for /api/metrics. Absent: nothing is recorded. */
+  metrics?: Metrics | undefined;
+  /** Extra things /api/ready must find working besides the database (Redis, say). Each throws when it is not. */
+  checks?: Record<string, () => Promise<void>> | undefined;
+  /** Antivirus check on uploads. Absent: files are stored after the type and size checks only. */
+  scanner?: Scanner | undefined;
   config: Config;
   sms: SmsProvider;
   nafath: NafathProvider;

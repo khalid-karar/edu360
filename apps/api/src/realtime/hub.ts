@@ -32,6 +32,11 @@ export class Hub {
 
   constructor(private readonly bus?: Bus) {}
 
+  /** Open sockets in this process. */
+  get size(): number {
+    return this.conns.size;
+  }
+
   async start(): Promise<void> {
     await this.bus?.subscribe((frame) => {
       try {

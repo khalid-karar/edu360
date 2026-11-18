@@ -11,6 +11,9 @@ import { liftExpiredSuspensions } from "../services/trust.js";
 import { deliverSms, sendReminders } from "../services/notifications.js";
 import { processDeletions } from "../services/dataRights.js";
 import { LiveKitVideo, MockVideo } from "../video/provider.js";
+import { Metrics } from "./metrics.js";
+import { ClamdScanner } from "../scan/scanner.js";
+import { S3Storage } from "../storage/s3.js";
 import { LocalDiskStorage } from "../storage/storage.js";
 import { buildApp } from "./app.js";
 import { Hub } from "../realtime/hub.js";
@@ -38,10 +41,16 @@ const rateStore = redis ? new FallbackRateStore(new RedisRateStore(redis), new M
 const hub = new Hub(redis ? new RedisBus(redis) : undefined);
 await hub.start();
 
+const metrics = new Metrics();
+const checks = redis ? { redis: async () => { await redis.ping(); } } : undefined;
+
 const mockPayments = config.payments === "mock" ? new MockPaymentProvider() : undefined;
 const ctx = {
   db,
-  storage: new LocalDiskStorage(config.uploadDir),
+  storage: config.s3 ? new S3Storage(config.s3) : new LocalDiskStorage(config.uploadDir),
+  metrics,
+  checks,
+  scanner: config.clamd ? new ClamdScanner(config.clamd.host, config.clamd.port) : undefined,
   config,
   sms: new MockSmsProvider(),
   nafath: new MockNafathProvider(),

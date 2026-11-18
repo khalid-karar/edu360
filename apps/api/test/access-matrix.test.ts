@@ -14,7 +14,7 @@ const roles = ["learner", "guardian", "teacher", "vetting_officer", "safety_offi
 const tokens = {} as Record<(typeof roles)[number] | "school" | "banned" | "suspended" | "pending", string>;
 
 // Open on purpose: sign-in, public catalogue, health, payment-provider webhook (checks a signature), the schools application form, dev-only mock pages.
-const PUBLIC = new Set(["GET /api/health", "POST /api/auth/otp/request", "POST /api/auth/otp/verify", "GET /api/categories", "POST /webhooks/moyasar", "POST /api/waitlist", "POST /api/schools/apply"]);
+const PUBLIC = new Set(["GET /api/health", "POST /api/auth/otp/request", "POST /api/auth/otp/verify", "GET /api/categories", "POST /webhooks/moyasar", "POST /api/waitlist", "POST /api/schools/apply", "GET /api/ready", "GET /api/metrics"]);
 // Logout is skipped: calling it would end the very sessions the matrix is using.
 const isPublic = (key: string) => PUBLIC.has(key) || key.includes("/mock-pay") || key === "POST /api/auth/logout";
 

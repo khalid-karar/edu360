@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { ErrorNote, Shell, Spinner } from "../../../../components/portal-ui";
-import { api } from "../../../../lib/api";
+import { api, errorText, saveProtectedFile } from "../../../../lib/api";
 import { dayLabel, sar } from "../../../../lib/format";
 
 interface E {
@@ -43,6 +43,7 @@ function Body() {
             <div className="kpi"><b>{sar(e.paidHalalas)}</b><span>تم تحويله</span></div>
           </div>
           <p className="muted small">الأرقام بعد خصم عمولة المنصة (20% لأول 5 دروس مع كل متعلّم، و12% بعدها). أول تحويل لك يمرّ بمراجعة إضافية.</p>
+          <Statement />
           <h2>التحويلات</h2>
           {e.payouts.length === 0 && <div className="empty">لا تحويلات بعد.</div>}
           <div className="grid">
@@ -56,5 +57,51 @@ function Body() {
         </>
       )}
     </>
+  );
+}
+
+interface Stmt {
+  month: string;
+  lessons: { bookingId: string; date: string; category: string; minutes: number; grossHalalas: number; commissionHalalas: number; refundedHalalas: number; netHalalas: number; payout: string }[];
+  totals: { lessons: number; grossHalalas: number; commissionHalalas: number; refundedHalalas: number; netHalalas: number };
+}
+const thisMonth = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Riyadh", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
+
+function Statement() {
+  const [month, setMonth] = useState(thisMonth());
+  const [s, setS] = useState<Stmt | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    setS(null);
+    setErr(null);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return;
+    api<Stmt>("GET", `/teacher/statement?month=${month}`).then(setS).catch((e) => setErr(errorText(e)));
+  }, [month]);
+  return (
+    <div className="card stack">
+      <div className="row between">
+        <h2 style={{ margin: 0 }}>كشف الشهر</h2>
+        <input type="month" className="ltr" value={month} max={thisMonth()} onChange={(e) => setMonth(e.target.value)} aria-label="الشهر" />
+      </div>
+      <ErrorNote error={err} />
+      {s && s.lessons.length === 0 && <div className="empty">لا دروس مدفوعة في هذا الشهر.</div>}
+      {s && s.lessons.length > 0 && (
+        <>
+          <div className="kpis">
+            <div className="kpi"><b>{s.totals.lessons}</b><span>دروس</span></div>
+            <div className="kpi"><b>{sar(s.totals.grossHalalas)}</b><span>المدفوع</span></div>
+            <div className="kpi"><b>{sar(s.totals.commissionHalalas)}</b><span>عمولة المنصة</span></div>
+            <div className="kpi"><b data-testid="statement-net">{sar(s.totals.netHalalas)}</b><span>صافي لك</span></div>
+          </div>
+          {s.lessons.map((l) => (
+            <div key={l.bookingId} className="row between small">
+              <span>{dayLabel(l.date)} · {l.category} · {l.minutes} د</span>
+              <b>{sar(l.netHalalas)}</b>
+            </div>
+          ))}
+          <div><button className="btn ghost" onClick={() => saveProtectedFile(`/teacher/statement?month=${month}&format=csv`, `ilmak-statement-${month}.csv`).catch((e) => setErr(errorText(e)))}>تنزيل CSV</button></div>
+        </>
+      )}
+    </div>
   );
 }

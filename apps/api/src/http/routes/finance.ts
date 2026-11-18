@@ -5,6 +5,7 @@ import { actOnPayout, createPayoutRun, decideDispute, previewPayoutRun } from ".
 import type { Ctx } from "../context.js";
 import { HttpError, parse, uuidParam } from "../errors.js";
 import { guard, me } from "../guard.js";
+import { dayRange, financeExport } from "../../services/reports.js";
 
 /** Finance officers only. Only here can bank details be read, and every read is audited. */
 export const financeRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
@@ -65,6 +66,16 @@ export const financeRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     const r = await createPayoutRun(deps, me(req).id);
     reply.code(201);
     return r;
+  });
+
+  // Everything captured in a range (Riyadh days, inclusive), as a spreadsheet. Contains teacher names, so each export is logged.
+  app.get("/admin/finance/export", { preHandler: pre }, async (req, reply) => {
+    const q = parse(z.object({ from: z.string(), to: z.string() }), req.query);
+    const { from, to } = dayRange(q.from, q.to);
+    const csv = await financeExport(db, from, to);
+    await audit(db, { actorId: me(req).id, action: "finance.export", targetType: "payments", targetId: me(req).id, detail: { from: q.from, to: q.to } });
+    reply.header("content-type", "text/csv; charset=utf-8").header("content-disposition", `attachment; filename="ilmak-finance-${q.from}_${q.to}.csv"`).header("cache-control", "no-store");
+    return csv;
   });
 
   app.get("/admin/finance/payouts", { preHandler: pre }, async (req) => {

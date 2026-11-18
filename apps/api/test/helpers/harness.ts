@@ -1,3 +1,4 @@
+import { Metrics } from "../../src/http/metrics.js";
 import { Hub } from "../../src/realtime/hub.js";
 import { MemoryStorage } from "../../src/storage/storage.js";
 import { PGlite } from "@electric-sql/pglite";
@@ -37,6 +38,8 @@ export const config: Config = {
 export interface Res {
   status: number;
   body: any;
+  text?: string;
+  headers?: Record<string, unknown>;
 }
 
 /** Smallest buffers the upload sniffer accepts as video. */
@@ -46,7 +49,7 @@ export const WEBM = Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer
 let phoneSeq = 0;
 export const nextPhone = () => `+9665${String(10_000_000 + ++phoneSeq)}`;
 
-export async function makeHarness() {
+export async function makeHarness(opts: { metricsToken?: string } = {}) {
   const pg = new PGlite();
   const db = pgliteDb(pg);
   await migrate(db);
@@ -62,7 +65,7 @@ export async function makeHarness() {
   const video = new MockVideo();
   const storage = new MemoryStorage();
   const hub = new Hub();
-  const ctx = { db, hub, storage, config, sms, nafath, payments, video, mockPayments: payments, now: clock.now, limits: { global: 100_000, auth: 100_000, ws: 100_000 } };
+  const ctx = { db, hub, storage, config: opts.metricsToken ? { ...config, metricsToken: opts.metricsToken } : config, ...(opts.metricsToken ? { metrics: new Metrics() } : {}), sms, nafath, payments, video, mockPayments: payments, now: clock.now, limits: { global: 100_000, auth: 100_000, ws: 100_000 } };
   const app = buildApp(ctx);
   await app.ready();
 
@@ -73,7 +76,8 @@ export async function makeHarness() {
       headers: o.token ? { authorization: `Bearer ${o.token}` } : {},
       ...(o.body !== undefined ? { payload: o.body as object } : {}),
     });
-    return { status: res.statusCode, body: res.body ? JSON.parse(res.body) : null };
+    const isJson = String(res.headers["content-type"] ?? "").includes("json");
+    return { status: res.statusCode, body: res.body && isJson ? JSON.parse(res.body) : null, text: res.body, headers: res.headers };
   }
 
   /** Full self-registration through the real endpoints. */

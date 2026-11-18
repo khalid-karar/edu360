@@ -65,6 +65,13 @@ export function buildApp(ctx: Ctx): FastifyInstance {
     return reply.code(500).send({ ok: false, error: "server_error" });
   });
 
+  const metrics = ctx.metrics;
+  if (metrics) {
+    app.addHook("onResponse", async (req, reply) => {
+      metrics.observe(req.method, req.routeOptions?.url ?? "unmatched", reply.statusCode, reply.elapsedTime / 1000);
+    });
+  }
+
   app.register(miscRoutes(ctx));
   app.register(authRoutes(ctx), { prefix: "/api" });
   app.register(identityRoutes(ctx), { prefix: "/api" });

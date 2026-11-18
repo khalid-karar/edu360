@@ -25,6 +25,15 @@ export async function saveUpload(ctx: Ctx, userId: string, data: unknown, declar
     if ((v.rows[0]?.n ?? 0) >= MAX_VIDEOS_PER_USER) throw new HttpError(422, "too_many_videos");
   }
 
+  // Fail closed: when a scanner is configured but cannot answer, the file is refused rather than stored unchecked.
+  if (ctx.scanner) {
+    const r = await ctx.scanner.scan(data).catch((e) => {
+      console.error("upload scan failed", e);
+      throw new HttpError(503, "scan_unavailable");
+    });
+    if (!r.clean) throw new HttpError(422, "file_infected");
+  }
+
   const key = `${ctx.config.uploadsPrefix}${userId}/${randomUUID()}.${EXTENSION[type]}`;
   await ctx.storage.put(key, data);
   try {

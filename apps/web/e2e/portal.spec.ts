@@ -234,3 +234,19 @@ test("the admin analytics tab shows the platform at a glance", async ({ browser 
   await expect(admin.locator("text=بانتظار قرار")).toBeVisible();
   await expect(admin.locator("[data-testid=gross]")).not.toBeEmpty();
 });
+
+test("a teacher reads the month statement and downloads it as CSV; finance exports payments", async ({ page, browser }) => {
+  await signIn(page, "+966500000101");
+  await page.goto("/portal/earnings");
+  // The seeded lessons are a few days old, so pick the month of five days ago whatever today's date is.
+  const month = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Riyadh", year: "numeric", month: "2-digit" }).format(new Date(Date.now() - 5 * 86_400_000)).slice(0, 7);
+  await page.fill("input[type=month]", month);
+  await expect(page.locator("[data-testid=statement-net]")).toBeVisible();
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.click("button:has-text('تنزيل CSV')")]);
+  expect(dl.suggestedFilename()).toBe(`ilmak-statement-${month}.csv`);
+
+  const fin = await signInStaff(browser, "+966500000203");
+  await fin.click("button:has-text('تصدير')");
+  const [dl2] = await Promise.all([fin.waitForEvent("download"), fin.click("button:has-text('تنزيل CSV')")]);
+  expect(dl2.suggestedFilename()).toMatch(/^ilmak-finance-\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}\.csv$/);
+});

@@ -32,6 +32,17 @@ const Env = z.object({
   UPLOAD_MAX_BYTES: z.coerce.number().int().positive().max(20_000_000).default(5_000_000),
   /** Intro and sample videos. Held in memory while saving, so keep this modest until object storage streams. */
   UPLOAD_VIDEO_MAX_BYTES: z.coerce.number().int().positive().max(200_000_000).default(50_000_000),
+  /** S3-compatible object storage (Oracle Object Storage in Riyadh). With S3_BUCKET set, uploads go there instead of UPLOAD_DIR. */
+  S3_BUCKET: z.string().min(1).optional(),
+  S3_ENDPOINT: z.string().url().optional(),
+  S3_REGION: z.string().min(1).default("me-riyadh-1"),
+  S3_ACCESS_KEY: z.string().min(1).optional(),
+  S3_SECRET_KEY: z.string().min(1).optional(),
+  /** ClamAV daemon. With CLAMD_HOST set, every upload is scanned and refused if the scanner is down. */
+  CLAMD_HOST: z.string().min(1).optional(),
+  CLAMD_PORT: z.coerce.number().int().positive().default(3310),
+  /** Bearer token for GET /api/metrics. Unset: the endpoint does not exist. Also keep it off the public proxy. */
+  METRICS_TOKEN: z.string().min(16).optional(),
   /** Mark the session cookie Secure. Only the plain-http local sandbox turns this off. */
   COOKIE_SECURE: z.enum(["true", "false"]).default("true"),
   /** Extra origins allowed to send cookie-authenticated changes and open sockets, comma separated. Same-host requests are always allowed. */
@@ -60,6 +71,9 @@ export interface Config {
   uploadMaxBytes: number;
   uploadVideoMaxBytes: number;
   redisUrl?: string;
+  metricsToken?: string;
+  s3?: { bucket: string; endpoint: string; region: string; accessKeyId: string; secretAccessKey: string };
+  clamd?: { host: string; port: number };
   cookieSecure: boolean;
   allowedOrigins: string[];
   video?: { kind: "mock" } | { kind: "livekit"; url: string; apiKey: string; apiSecret: string };
@@ -76,6 +90,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
   if (e.VIDEO === "livekit" && (!e.LIVEKIT_URL || !e.LIVEKIT_API_KEY || !e.LIVEKIT_API_SECRET)) {
     throw new Error("VIDEO=livekit needs LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET");
+  }
+  if (e.S3_BUCKET && (!e.S3_ENDPOINT || !e.S3_ACCESS_KEY || !e.S3_SECRET_KEY)) {
+    throw new Error("S3_BUCKET needs S3_ENDPOINT, S3_ACCESS_KEY and S3_SECRET_KEY");
   }
   return {
     port: e.PORT,
@@ -96,6 +113,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     uploadMaxBytes: e.UPLOAD_MAX_BYTES,
     uploadVideoMaxBytes: e.UPLOAD_VIDEO_MAX_BYTES,
     ...(e.REDIS_URL ? { redisUrl: e.REDIS_URL } : {}),
+    ...(e.METRICS_TOKEN ? { metricsToken: e.METRICS_TOKEN } : {}),
+    ...(e.S3_BUCKET ? { s3: { bucket: e.S3_BUCKET, endpoint: e.S3_ENDPOINT!, region: e.S3_REGION, accessKeyId: e.S3_ACCESS_KEY!, secretAccessKey: e.S3_SECRET_KEY! } } : {}),
+    ...(e.CLAMD_HOST ? { clamd: { host: e.CLAMD_HOST, port: e.CLAMD_PORT } } : {}),
     cookieSecure: e.COOKIE_SECURE === "true",
     allowedOrigins: e.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean),
     echoOtp: e.PROVIDERS === "mock",

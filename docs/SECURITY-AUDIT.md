@@ -6,7 +6,7 @@ Done by the development team on the phase 7 branch, before any outside review. I
 
 | Area | Result | Kept in place by |
 |---|---|---|
-| Who can reach each route | All 83 non-public routes refuse anonymous callers. The table of which role gets past each guard was reviewed by hand against intent (staff routes: one role each; money and bank routes: finance only; banned and suspended users reach only their record, appeals, notifications, data export and deletion). | `test/access-matrix.test.ts` pins the table in `test/access-matrix.json`. A new or changed route fails the test until the table is updated on purpose. |
+| Who can reach each route | All 98 non-public routes (count on 2026-11-18) refuse anonymous callers. The table of which role gets past each guard was reviewed by hand against intent (staff routes: one role each; money and bank routes: finance only; banned and suspended users reach only their record, appeals, notifications, data export and deletion). | `test/access-matrix.test.ts` pins the table in `test/access-matrix.json`. A new or changed route fails the test until the table is updated on purpose. |
 | Other people's records | A signed-in stranger (learner, teacher or guardian) gets 404 or 403 on every booking route, cannot attach someone else's card hold, book for someone else's child, read or mark others' notifications, or appeal others' strikes. No owner id leaks in the replies. | `test/idor.test.ts` |
 | Bad input | No route answers 500 to empty, oversized or wrongly typed bodies, for any role. | `test/access-matrix.test.ts` |
 | Test-only routes | `/api/dev/*` and `/api/mock-pay/*` do not exist unless the mock payment provider is wired. | `test/idor.test.ts`, and `PAYMENTS=moyasar` never wires it |
@@ -27,12 +27,26 @@ This shows the code and queries hold up and there is no lock contention at pilot
 
 Run it: `createdb ilmak_load && DATABASE_URL=postgres://localhost/ilmak_load node dist/dev/load.js` (after `npm run build` in `apps/api`). Env: `TEACHERS`, `LEARNERS`, `CONCURRENCY`, `READ_SECONDS`.
 
+## Added in phases 9 to 14 (self-checked on 2026-11-18)
+
+| Area | Result | Kept in place by |
+|---|---|---|
+| Session cookie | Sign-in sets an HttpOnly, SameSite=Strict, Secure cookie on `/api` only; scripts in a page cannot read it. A cookie-authenticated change must carry the `x-ilmak-client` header and an allowed Origin (CSRF); bearer tokens are still accepted for non-browser clients. Login returns no token to the web client. | `test/cookie-session.test.ts`, browser test "the session is an HttpOnly cookie" |
+| WebSocket | The socket needs a valid session and, with a cookie, an allowed Origin (cross-site hijacking). It carries signals only ("something changed in booking X"); content is fetched over REST, so every read still passes the normal owner check. Connection attempts and sockets per user are capped. A signed-out or banned user's socket is dropped. | `test/realtime.test.ts` |
+| Uploads | Type is read from the file's bytes, not the header or name; server-chosen keys; owner-only read; staff reads are audited; size, count and video caps; raw bodies are only parsed after sign-in. With ClamAV configured every file is scanned and refused if the scanner is down. | `test/uploads.test.ts`, `test/storage-scan.test.ts` |
+| Object storage | The S3 adapter uses signed requests, path-style addressing, a private bucket and no public links. Only tested against a stand-in S3 server. | `test/storage-scan.test.ts` |
+| Schools | A public application form (strict per-address limit) creates nothing but a pending row; only the super admin approves. A school sees counts only, and lesson figures only from 5 families; subjects with fewer than 5 families are folded into "other". A wrong invite code is refused before the one-time code is spent. | `test/schools.test.ts` |
+| Reports and exports | A teacher's statement names no learner and is owner-only. The finance CSV is finance-officer-only, each export is written to the audit log, and a text cell starting with `=`, `+`, `-` or `@` is defused so a name cannot run as a spreadsheet formula. | `test/reports.test.ts` |
+| Metrics | `/api/metrics` does not exist without `METRICS_TOKEN`, then needs the bearer token (constant-time compare). Labels are route patterns, so ids never appear. | `test/ops.test.ts` |
+| Dependencies | `npm audit --omit=dev`: 0 known vulnerabilities in API and web on 2026-11-18. | Run again before launch |
+
 ## Not fixed, for a decision or later work
 
-1. **Caddy on the Oracle server sends no CSP or X-Frame-Options.** `deploy/server-setup.sh` was left alone on purpose. Add the same header block as `apps/web/public/_headers` when the server is next updated. The API also relies on Caddy overwriting `X-Forwarded-For`; keep the API bound to 127.0.0.1 so nothing can reach it directly.
-2. **Rate limits are in memory, per IP, per process.** They reset on restart and do not span two API processes. Sign-in codes are also limited per phone number in the database. Fine for one server; move to the database or a proxy before scaling out.
-3. **Session token lives in browser storage.** A script injected into a page could read it. The CSP narrows where scripts load from, but Next's static export needs inline scripts, so `script-src` keeps `'unsafe-inline'`. A later change to HttpOnly cookies would remove this class of risk.
-4. **File uploads are a placeholder** (only the file name is recorded). Real storage needs size and type limits, virus scanning and private access links before teachers can upload credentials.
-5. **The audit log is append-only by database trigger,** but a database administrator can still disable the trigger. Ship the log off the server for tamper evidence.
-6. **Nothing here covers hosting-level controls:** data residency in Saudi Arabia, backup and restore drills, disk encryption, SSH access. Those belong to the server work and the pilot-hardening step.
-7. **An independent penetration test** is still needed before real payments and real children's data go live.
+1. **Caddy on the old Oracle test server sends no CSP or X-Frame-Options,** and its systemd unit gives the API no writable upload folder. `deploy/server-setup.sh` was left alone on purpose. The new `deploy/templates/` and `docs/DEPLOY-ORACLE.md` describe the intended setup; the API must stay bound to 127.0.0.1 behind Caddy, because it trusts the forwarded client address.
+2. **Without Redis, rate limits are per process** and reset on restart. With `REDIS_URL` they are shared; if Redis drops they fall back to per-process memory rather than failing requests. Redis is not yet installed on any server.
+3. **`script-src` keeps `'unsafe-inline'`** because Next's static export needs inline scripts. The session is now an HttpOnly cookie, so an injected script can no longer steal it, but it could still act as the user while the page is open.
+4. **Videos are held in memory while saved** (up to `UPLOAD_VIDEO_MAX_BYTES`, 50 MB by default). Per-user caps and rate limits bound it, but many parallel uploads could pressure a small server. Streaming to object storage would remove this.
+5. **A school invite code (8 characters from 32) can be guessed only by repeated registration attempts,** which the sign-in limits slow down. A correct guess only attributes a new family to that school; it reveals nothing else. Acceptable for a pilot.
+6. **The audit log is append-only by database trigger,** but a database administrator can still disable the trigger. Ship the log off the server for tamper evidence.
+7. **Hosting-level controls are not covered:** disk encryption, SSH access, alerting, a tested restore on the real server. The backup and restore scripts were run on a real PostgreSQL 16 but not on Oracle.
+8. **An independent penetration test** is still needed before real payments and real children's data go live.

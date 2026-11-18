@@ -5,6 +5,7 @@ import { openDispute } from "../../services/finance.js";
 import { audit } from "../../services/audit.js";
 import type { Ctx } from "../context.js";
 import { HttpError, isUniqueViolation, parse, uuidParam } from "../errors.js";
+import { statementCsv, teacherStatement } from "../../services/reports.js";
 import { guard, me } from "../guard.js";
 import { APPEAL_WINDOW_DAYS, fileAppeal } from "../../services/appeals.js";
 
@@ -169,5 +170,17 @@ export const trustRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
       payoutsFrozen: frozen,
       payouts: payouts.rows.map((o) => ({ id: o.id, amountHalalas: o.amount_halalas, status: o.status, createdAt: o.created_at, paidAt: o.paid_at, bankReference: o.bank_reference })),
     };
+  });
+
+  // A month's statement, as JSON for the page or CSV for the teacher's own bookkeeping.
+  app.get("/teacher/statement", { preHandler: guard(ctx, { roles: ["teacher"], anyStatus: true }) }, async (req, reply) => {
+    const u = me(req);
+    const now = ctx.now();
+    const q = parse(z.object({ month: z.string().optional(), format: z.enum(["json", "csv"]).default("json") }), req.query);
+    const month = q.month ?? new Date(now.getTime() + 3 * 3_600_000).toISOString().slice(0, 7);
+    const s = await teacherStatement(db, u.id, month);
+    if (q.format === "json") return s;
+    reply.header("content-type", "text/csv; charset=utf-8").header("content-disposition", `attachment; filename="ilmak-statement-${month}.csv"`).header("cache-control", "no-store");
+    return statementCsv(s);
   });
 };

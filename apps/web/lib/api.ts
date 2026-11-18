@@ -107,7 +107,26 @@ export async function openProtectedFile(path: string): Promise<void> {
   setTimeout(() => URL.revokeObjectURL(url), 5 * 60_000);
 }
 
+/** Saves a protected file (a CSV, say) to the device. Same sign-in as every other call. */
+export async function saveProtectedFile(path: string, filename: string): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${BASE}/api${path}`, { headers: { ...CLIENT, ...(token ? { authorization: `Bearer ${token}` } : {}) } }).catch(() => null);
+  if (!res) throw new ApiError(0, "network");
+  if (!res.ok) throw new ApiError(res.status, (await res.json().catch(() => null))?.error ?? "server_error");
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
 const MESSAGES: Record<string, string> = {
+  file_infected: "رفضنا الملف لأن الفحص الأمني وجد فيه ما يشبه فيروساً.",
+  scan_unavailable: "تعذّر فحص الملف الآن. حاول بعد دقائق.",
+  invalid_month: "الشهر غير صحيح.",
+  invalid_range: "المدة غير صحيحة: تأكد من التاريخين.",
+  range_too_long: "المدة طويلة جداً: اختر سنة أو أقل.",
   empty_file: "الملف فارغ.",
   too_large: "حجم الملف أكبر من المسموح.",
   unsupported_file_type: "نوع الملف غير مدعوم أو محتواه لا يطابق امتداده.",
