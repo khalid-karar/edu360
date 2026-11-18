@@ -6,6 +6,7 @@ import { dateTime } from "../../lib/format";
 import { useAct, useLoad } from "./common";
 
 interface QueueItem { teacherId: string; displayName: string; status: string; submittedAt: string; categories: number; pendingCredentials: number }
+interface ExtraItem { teacherId: string; displayName: string; categoryId: number; categoryName: string; pendingCredentials: number; acceptedCredentials: number }
 interface Detail {
   teacher: { status: string; bio: string | null; languages: string[]; freelance_document_no: string | null; has_employer_noc: boolean; has_intro_video: boolean; code_of_conduct_version: string | null; adults_only: boolean; submitted_at: string; display_name: string; full_name: string | null; gender: string | null };
   categories: { category_id: number; name_ar: string; price_halalas: number; approved: boolean }[];
@@ -30,10 +31,25 @@ function FileLink({ label, path }: { label: string; path: string }) {
 
 export function VettingConsole() {
   const [sel, setSel] = useState<string | null>(null);
-  const q = useLoad<{ items: QueueItem[] }>("/admin/vetting/queue");
+  const [extra, setExtra] = useState<ExtraItem | null>(null);
+  const q = useLoad<{ items: QueueItem[]; extra: ExtraItem[] }>("/admin/vetting/queue");
   if (sel) return <Review id={sel} onBack={() => { setSel(null); q.reload(); }} />;
+  if (extra) return <ExtraReview item={extra} onBack={() => { setExtra(null); q.reload(); }} />;
   return (
     <>
+      {q.data && q.data.extra.length > 0 && (
+        <>
+          <h2>تخصصات إضافية لمعلّمين معتمدين</h2>
+          <div className="grid">
+            {q.data.extra.map((x) => (
+              <button key={`${x.teacherId}-${x.categoryId}`} className="card tight click" onClick={() => setExtra(x)}>
+                <div className="row between"><b>{x.displayName}</b><span className="badge wait">{x.categoryName}</span></div>
+                <span className="muted small">{x.pendingCredentials} مستند لم يُراجع · {x.acceptedCredentials} مقبول</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       <h2>طلبات المعلّمين</h2>
       <ErrorNote error={q.err} />
       {!q.data && !q.err && <Spinner />}
@@ -146,6 +162,45 @@ function Review({ id, onBack }: { id: string; onBack: () => void }) {
           {reviews.map((r, i) => <div key={i} className="card tight"><b>{DECISION[r.decision] ?? r.decision}</b> <span className="muted small">{dateTime(r.created_at)}</span>{r.reason && <p>{r.reason}</p>}</div>)}
         </>
       )}
+    </>
+  );
+}
+
+/** One subject an approved teacher added: review its proof, then approve or reject the subject. */
+function ExtraReview({ item, onBack }: { item: ExtraItem; onBack: () => void }) {
+  const d = useLoad<Detail>(`/admin/vetting/teachers/${item.teacherId}`);
+  const act = useAct();
+  const [reason, setReason] = useState("");
+  const creds = d.data?.credentials.filter((c) => c.category_id === item.categoryId) ?? [];
+  const accepted = creds.some((c) => c.verdict === "accepted");
+  async function review(cid: string, verdict: "accepted" | "rejected") {
+    if (await act.run("POST", `/admin/vetting/credentials/${cid}/review`, { verdict })) d.reload();
+  }
+  async function decide(decision: "approve" | "reject") {
+    if (await act.run("POST", `/admin/vetting/teachers/${item.teacherId}/categories/${item.categoryId}/decision`, { decision, ...(decision === "reject" ? { reason: reason.trim() } : {}) })) onBack();
+  }
+  return (
+    <>
+      <button className="btn ghost" onClick={onBack}>← رجوع</button>
+      <h2>{item.displayName}: {item.categoryName}</h2>
+      <ErrorNote error={d.err} />
+      {!d.data && !d.err && <Spinner />}
+      <div className="grid">
+        {creds.map((x) => (
+          <div key={x.id} className="card tight stack">
+            <FileLink label={KIND[x.kind] ?? x.kind} path={`/admin/vetting/credentials/${x.id}/file`} />
+            {x.verdict === null
+              ? <span className="row"><button className="btn" disabled={act.busy} onClick={() => review(x.id, "accepted")}>قبول</button><button className="btn danger" disabled={act.busy} onClick={() => review(x.id, "rejected")}>رفض</button></span>
+              : <span className="badge">{x.verdict === "accepted" ? "مقبول" : "مرفوض"}</span>}
+          </div>
+        ))}
+      </div>
+      <ErrorNote error={act.err} />
+      <div className="card stack">
+        <div><button className="btn" disabled={act.busy || !accepted} onClick={() => decide("approve")}>اعتماد التخصص</button>{!accepted && <span className="muted small"> يلزم قبول مستند واحد على الأقل.</span>}</div>
+        <Field label="سبب الرفض"><input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+        <div><button className="btn danger" disabled={act.busy || reason.trim().length < 3} onClick={() => decide("reject")}>رفض التخصص</button></div>
+      </div>
     </>
   );
 }

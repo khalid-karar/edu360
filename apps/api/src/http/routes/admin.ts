@@ -3,7 +3,8 @@ import { z } from "zod";
 import { adminAnalytics } from "../../services/analytics.js";
 import { audit } from "../../services/audit.js";
 import type { Ctx } from "../context.js";
-import { HttpError, isUniqueViolation, parse } from "../errors.js";
+import { HttpError, isUniqueViolation, parse, uuidParam } from "../errors.js";
+import { decideRequest, listRequests } from "../../services/categoryRequests.js";
 import { guard, me } from "../guard.js";
 
 const Band = { minPriceHalalas: z.number().int().positive(), maxPriceHalalas: z.number().int().positive() };
@@ -80,6 +81,25 @@ export const adminRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
       if (isUniqueViolation(e)) throw new HttpError(409, "slug_taken");
       throw e;
     }
+  });
+
+  app.get("/admin/category-requests", { preHandler: superAdmin }, async (req) => {
+    const { status } = parse(z.object({ status: z.enum(["pending", "approved", "rejected"]).default("pending") }), req.query);
+    return { items: await listRequests(db, status) };
+  });
+
+  app.post("/admin/category-requests/:id/decision", { preHandler: superAdmin }, async (req) => {
+    const id = uuidParam((req.params as { id?: string }).id);
+    const b = parse(
+      z.union([
+        z.object({ decision: z.literal("approve"), ...CreateCategory.shape }).strict(),
+        z.object({ decision: z.literal("reject"), reason: z.string().trim().min(3).max(300) }).strict(),
+      ]),
+      req.body,
+    );
+    if (b.decision === "reject") return { ok: true, ...(await decideRequest(db, ctx.now(), me(req).id, id, { decision: "reject", reason: b.reason })) };
+    const { decision: _d, ...category } = b;
+    return { ok: true, ...(await decideRequest(db, ctx.now(), me(req).id, id, { decision: "approve", category })) };
   });
 
   app.patch("/admin/categories/:id", { preHandler: superAdmin }, async (req) => {

@@ -2,7 +2,7 @@
 export type NoticeKind =
   | "booking_requested" | "booking_accepted" | "booking_declined" | "booking_cancelled" | "booking_expired_unpaid"
   | "booking_unanswered" | "lesson_completed" | "no_show" | "lesson_reminder" | "new_message"
-  | "vetting_decision" | "strike" | "dispute_opened" | "dispute_decided" | "payout_update" | "report_update" | "appeal_filed" | "appeal_decided" | "guarantee_claimed" | "deletion_requested" | "inquiry_message";
+  | "vetting_decision" | "strike" | "dispute_opened" | "dispute_decided" | "payout_update" | "report_update" | "appeal_filed" | "appeal_decided" | "guarantee_claimed" | "deletion_requested" | "inquiry_message" | "category_request_decided" | "extra_category_decided";
 
 export interface Notice {
   title: string;
@@ -53,6 +53,14 @@ export function render(kind: NoticeKind, v: NoticeVars = {}): Notice {
       return v.by === "teacher"
         ? t("استُخدم ضمان الدرس الأول", `استرد المتعلّم مبلغ درسه الأول معك. أضفنا ${v.amount ?? ""} إلى أرباحك تعويضاً من المنصة. هذا لا يُحسب مخالفة عليك.`)
         : t("تم استرداد مبلغ درسك", `استرددنا ${v.amount ?? ""} كاملاً بموجب ضمان الدرس الأول، وسيصل إلى بطاقتك خلال أيام العمل المعتادة للبنك.`, true);
+    case "category_request_decided":
+      return v.decision === "approved"
+        ? t("أُضيف التخصص الذي طلبته", `أضفنا «${v.who ?? ""}» إلى قائمة التخصصات. اخترْه من ملفك وارفع مستنداتك له.`, true)
+        : t("لم يُقبل طلب التخصص", `لم نضف «${v.who ?? ""}» حالياً${v.note ? `: ${v.note}` : ""}.`, true);
+    case "extra_category_decided":
+      return v.decision === "approved"
+        ? t("اعتُمد تخصصك الإضافي", `اعتمدنا «${v.who ?? ""}» ضمن تخصصاتك، وصار ظاهراً للمتعلّمين.`, true)
+        : t("لم يُعتمد التخصص الإضافي", `لم نعتمد «${v.who ?? ""}» حالياً${v.note ? `: ${v.note}` : ""}.`, true);
     case "report_update": return t("تحديث على بلاغك", `${v.decision ?? "تمت مراجعة بلاغك"}.`);
   }
 }

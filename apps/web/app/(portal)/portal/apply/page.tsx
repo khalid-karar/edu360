@@ -97,6 +97,7 @@ function Body() {
           <p className="muted small">الملفات المقبولة: المستندات PDF أو صورة PNG/JPEG حتى 5 ميجا، والفيديو MP4 أو WebM أو MOV حتى 50 ميجا. يطّلع عليها فريق التدقيق فقط.</p>
           <ProfileForm me={me} onSaved={load} />
           <CategoriesForm me={me} cats={cats} onSaved={load} />
+          <CategoryRequestBox />
           {me.categories.length > 0 && <Credentials me={me} onSaved={load} />}
           <Conduct me={me} onSaved={load} />
           <Payout me={me} onSaved={load} />
@@ -105,8 +106,22 @@ function Body() {
       )}
       {!editable && me.categories.length > 0 && (
         <div className="card"><h3>تخصصاتي</h3>
-          {me.categories.map((c) => <div key={c.categoryId} className="row between"><span>{c.nameAr}</span><span className="muted small">{sar(c.priceHalalas)} · {c.approved ? "معتمد" : "قيد الاعتماد"}</span></div>)}
+          {me.categories.map((c) => (
+            <div key={c.categoryId} className="row between">
+              <span>{c.nameAr}</span>
+              <span className="row"><span className="muted small">{sar(c.priceHalalas)} · {c.approved ? "معتمد" : "قيد الاعتماد"}</span>
+                {!c.approved && (me.status === "approved" || me.status === "conditional") && <button className="btn ghost" onClick={async () => { if (confirm("سحب هذا التخصص وحذف مستنداته؟")) { await api("DELETE", `/teacher/extra-categories/${c.categoryId}`).catch(() => {}); load(); } }}>سحب</button>}
+              </span>
+            </div>
+          ))}
         </div>
+      )}
+      {(me.status === "approved" || me.status === "conditional") && (
+        <>
+          <ExtraCategory me={me} cats={cats} onSaved={load} />
+          {me.categories.some((c) => !c.approved) && <Credentials me={me} onSaved={load} only={me.categories.filter((c) => !c.approved).map((c) => c.categoryId)} title="مستندات التخصص الإضافي" />}
+          <CategoryRequestBox />
+        </>
       )}
     </>
   );
@@ -196,7 +211,7 @@ function CategoriesForm({ me, cats, onSaved }: { me: Me; cats: Cat[]; onSaved: (
   );
 }
 
-function Credentials({ me, onSaved }: { me: Me; onSaved: () => void }) {
+function Credentials({ me, onSaved, only, title }: { me: Me; onSaved: () => void; only?: number[]; title?: string }) {
   const [kind, setKind] = useState<Record<number, string>>({});
   const [file, setFile] = useState<Record<number, File | undefined>>({});
   const [pct, setPct] = useState<Record<number, number | null>>({});
@@ -210,9 +225,9 @@ function Credentials({ me, onSaved }: { me: Me; onSaved: () => void }) {
   });
   return (
     <div className="card stack">
-      <h3>3. المستندات</h3>
+      <h3>{title ?? "3. المستندات"}</h3>
       <p className="muted small">لكل تخصص مستند واحد على الأقل يثبت أهليتك (شهادة أو إجازة أو أعمال). «فيديو تجريبي» يُرفع كفيديو، وغيره كمستند أو صورة.</p>
-      {me.categories.map((c) => {
+      {me.categories.filter((c) => !only || only.includes(c.categoryId)).map((c) => {
         const mine = me.credentials.filter((x) => x.categoryId === c.categoryId);
         const k = kind[c.categoryId] ?? "degree";
         return (
@@ -275,6 +290,73 @@ function Submit({ me, onSaved }: { me: Me; onSaved: () => void }) {
       {me.missing.length > 0 ? <p className="muted">أكمل الخطوات الناقصة أولاً: {me.missing.map((m) => MISSING[m] ?? m).join("، ")}.</p> : <p>كل شيء جاهز. بعد التقديم لا يمكنك تعديل الملف حتى يصدر القرار.</p>}
       <ErrorNote error={s.err} />
       <div><button className="btn coral" disabled={s.busy || me.missing.length > 0} onClick={() => confirm("تقديم الطلب للمراجعة؟") && s.run(() => api("POST", "/teacher/submit"))}>تقديم الطلب</button></div>
+    </div>
+  );
+}
+
+/** After approval: add one more subject. It stays hidden from learners until a vetting officer accepts proof for it. */
+function ExtraCategory({ me, cats, onSaved }: { me: Me; cats: Cat[]; onSaved: () => void }) {
+  const free = cats.filter((c) => !me.categories.some((x) => x.categoryId === c.id));
+  const [id, setId] = useState<number | "">("");
+  const [price, setPrice] = useState("");
+  const s = useSave(onSaved);
+  if (me.categories.length >= 3 || free.length === 0) return null;
+  const c = cats.find((x) => x.id === id);
+  const p = Math.round(Number(price) * 100);
+  const ok = !!c && p >= c.minPriceHalalas && p <= c.maxPriceHalalas;
+  return (
+    <div className="card stack">
+      <h3>إضافة تخصص جديد</h3>
+      <p className="muted small">يظهر للمتعلّمين بعد أن يقبل فريق التدقيق مستنداتك لهذا التخصص. تخصصاتك الحالية تبقى كما هي.</p>
+      <div className="row wrap">
+        <select value={id} onChange={(e) => { const v = e.target.value ? Number(e.target.value) : ""; setId(v); const cc = cats.find((x) => x.id === v); setPrice(cc ? String(cc.minPriceHalalas / 100) : ""); }} aria-label="التخصص">
+          <option value="">اختر التخصص</option>
+          {free.map((x) => <option key={x.id} value={x.id}>{x.nameAr}</option>)}
+        </select>
+        {c && <span className="row"><input style={{ width: 90 }} inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} aria-label="سعر الساعة" /><span className="muted small">ر.س ({c.minPriceHalalas / 100}–{c.maxPriceHalalas / 100})</span></span>}
+        <button className="btn" disabled={s.busy || !ok} onClick={() => s.run(async () => { await api("POST", "/teacher/extra-categories", { categoryId: id, priceHalalas: p }); setId(""); setPrice(""); })}>إضافة</button>
+      </div>
+      <Saved s={s} />
+    </div>
+  );
+}
+
+interface Req { id: string; name: string; status: "pending" | "approved" | "rejected"; rejectReason: string | null }
+const REQ_STATUS = { pending: "بانتظار القرار", approved: "أُضيف", rejected: "لم يُقبل" } as const;
+
+/** The subject is not in the list: ask for it. The admin adds it or says why not. */
+function CategoryRequestBox() {
+  const [items, setItems] = useState<Req[]>([]);
+  const [name, setName] = useState("");
+  const [note, setNote] = useState("");
+  const [err, setErr] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const load = useCallback(() => { api<{ items: Req[] }>("GET", "/teacher/category-requests").then((r) => setItems(r.items)).catch(() => {}); }, []);
+  useEffect(load, [load]);
+  async function send() {
+    setBusy(true); setErr(null); setSent(false);
+    try { await api("POST", "/teacher/category-requests", { name: name.trim(), ...(note.trim() ? { note: note.trim() } : {}) }); setName(""); setNote(""); setSent(true); load(); } catch (e) { setErr(e); } finally { setBusy(false); }
+  }
+  return (
+    <div className="card stack">
+      <h3>تخصصك غير موجود في القائمة؟</h3>
+      <p className="muted small">اطلب إضافته. يراجع الطلب فريق الإدارة ويصلك إشعار بالقرار، وبعد إضافته تختاره وترفع مستنداتك له.</p>
+      <Field label="اسم التخصص"><input value={name} maxLength={60} onChange={(e) => setName(e.target.value)} placeholder="مثال: الكيمياء" /></Field>
+      <Field label="ملاحظة (اختياري)"><input value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} placeholder="ما الذي تدرّسه وللأي مرحلة؟" /></Field>
+      <ErrorNote error={err} />
+      {sent && <div className="note info">وصل طلبك.</div>}
+      <div><button className="btn ghost" disabled={busy || name.trim().length < 2} onClick={send}>إرسال الطلب</button></div>
+      {items.length > 0 && (
+        <div className="stack">
+          {items.map((r) => (
+            <div key={r.id} className="row between small">
+              <span>{r.name}</span>
+              <span className="muted">{REQ_STATUS[r.status]}{r.status === "rejected" && r.rejectReason ? `: ${r.rejectReason}` : ""}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

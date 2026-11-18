@@ -122,6 +122,12 @@ export async function saveProtectedFile(path: string, filename: string): Promise
 }
 
 const MESSAGES: Record<string, string> = {
+  category_exists: "هذا التخصص موجود في القائمة. اخترْه منها.",
+  already_requested: "طلبتَ هذا التخصص من قبل وهو بانتظار القرار.",
+  too_many_pending_requests: "لديك 3 طلبات بانتظار القرار. انتظر الرد عليها أولاً.",
+  already_selected: "هذا التخصص ضمن تخصصاتك.",
+  too_many_categories: "وصلت للحد الأقصى من التخصصات (3).",
+  no_accepted_proof: "لا يمكن الاعتماد قبل قبول مستند واحد على الأقل لهذا التخصص.",
   file_infected: "رفضنا الملف لأن الفحص الأمني وجد فيه ما يشبه فيروساً.",
   scan_unavailable: "تعذّر فحص الملف الآن. حاول بعد دقائق.",
   invalid_month: "الشهر غير صحيح.",

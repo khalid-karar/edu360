@@ -96,6 +96,7 @@ export async function adminAnalytics(db: Db, now: Date) {
       openDisputes: await count(db, "SELECT count(*)::int AS n FROM disputes WHERE outcome IS NULL"),
       openAppeals: await count(db, "SELECT count(*)::int AS n FROM appeals WHERE status = 'open'"),
       pendingSchools: statusCount(schools.rows, "pending"),
+      pendingCategoryRequests: await count(db, "SELECT count(*)::int AS n FROM category_requests WHERE status = 'pending'"),
       suspendedUsers: await count(db, "SELECT count(*)::int AS n FROM users WHERE status = 'suspended'"),
       bannedUsers: await count(db, "SELECT count(*)::int AS n FROM users WHERE status = 'banned'"),
     },

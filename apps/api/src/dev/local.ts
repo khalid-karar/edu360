@@ -144,6 +144,7 @@ const staff = [
   ["finance_officer", "+966500000203", "موظف المالية"],
   ["finance_officer", "+966500000205", "موظف المالية الثاني"],
   ["super_admin", "+966500000204", "مدير النظام"],
+  ["super_admin", "+966500000207", "مدير النظام الثاني"],
 ] as const;
 const secrets = new Map<string, Buffer>();
 for (const [role, phone, name] of staff) {

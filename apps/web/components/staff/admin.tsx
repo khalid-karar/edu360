@@ -32,6 +32,7 @@ function Categories() {
   }
   return (
     <>
+      <Requests onApproved={q.reload} />
       <p className="muted small">القائمة المعروضة هي التخصصات النشطة. تغيير نطاق السعر لا يغيّر أسعار المعلّمين الحالية.</p>
       <ErrorNote error={q.err} />
       {!q.data && !q.err && <Spinner />}
@@ -102,7 +103,7 @@ interface Stats {
 
 const WAITING: Record<string, string> = {
   teacherApplications: "طلبات معلّمين", openReports: "بلاغات مفتوحة", openFlags: "تنبيهات الرسائل", openDisputes: "نزاعات",
-  openAppeals: "استئنافات", pendingSchools: "مدارس بانتظار القرار", suspendedUsers: "حسابات موقوفة", bannedUsers: "حسابات محظورة",
+  openAppeals: "استئنافات", pendingCategoryRequests: "طلبات تخصصات", pendingSchools: "مدارس بانتظار القرار", suspendedUsers: "حسابات موقوفة", bannedUsers: "حسابات محظورة",
 };
 const PIPE: Record<string, string> = { draft: "مسودة", submitted: "مقدّم", interview: "مقابلة", approved: "معتمد", rejected: "مرفوض", suspended: "موقوف" };
 
@@ -195,5 +196,55 @@ function Schools() {
         ))}
       </div>
     </>
+  );
+}
+
+interface CatReq { id: string; name: string; note: string | null; teacherName: string; createdAt: string }
+const slugOf = (en: string) => en.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+
+/** Subjects teachers asked for. Approving creates the category; the price range starts wide and the admin may narrow it. */
+function Requests({ onApproved }: { onApproved: () => void }) {
+  const q = useLoad<{ items: CatReq[] }>("/admin/category-requests");
+  if (!q.data || q.data.items.length === 0) return null;
+  return (
+    <div className="stack">
+      <h3>طلبات تخصصات جديدة ({q.data.items.length})</h3>
+      {q.data.items.map((r) => <RequestCard key={r.id} r={r} onDone={() => { q.reload(); onApproved(); }} />)}
+    </div>
+  );
+}
+
+function RequestCard({ r, onDone }: { r: CatReq; onDone: () => void }) {
+  const act = useAct();
+  const [f, setF] = useState({ nameAr: r.name, nameEn: "", slug: "", min: "30", max: "500", minors: true });
+  const [reason, setReason] = useState("");
+  const slug = f.slug || slugOf(f.nameEn);
+  const valid = f.nameAr.trim().length >= 2 && f.nameEn.trim().length >= 2 && /^[a-z0-9-]{2,40}$/.test(slug) && Number(f.min) > 0 && Number(f.max) >= Number(f.min);
+  async function approve() {
+    const body = { decision: "approve", slug, nameAr: f.nameAr.trim(), nameEn: f.nameEn.trim(), minPriceHalalas: Math.round(Number(f.min) * 100), maxPriceHalalas: Math.round(Number(f.max) * 100), allowsMinors: f.minors };
+    if (await act.run("POST", `/admin/category-requests/${r.id}/decision`, body)) onDone();
+  }
+  async function reject() {
+    if (await act.run("POST", `/admin/category-requests/${r.id}/decision`, { decision: "reject", reason: reason.trim() })) onDone();
+  }
+  return (
+    <div className="card stack" data-testid={`catreq-${r.id}`}>
+      <div className="row between"><b>{r.name}</b><span className="muted small">{r.teacherName} · {dateTime(r.createdAt)}</span></div>
+      {r.note && <p className="muted small">{r.note}</p>}
+      <Field label="الاسم بالعربي"><input value={f.nameAr} onChange={(e) => setF({ ...f, nameAr: e.target.value })} /></Field>
+      <Field label="الاسم بالإنجليزي"><input className="ltr" value={f.nameEn} onChange={(e) => setF({ ...f, nameEn: e.target.value })} /></Field>
+      <Field label="المعرّف (يُولَّد من الإنجليزي)"><input className="ltr" value={slug} onChange={(e) => setF({ ...f, slug: e.target.value })} /></Field>
+      <div className="row">
+        <Field label="أقل سعر (ر.س)"><input inputMode="decimal" value={f.min} onChange={(e) => setF({ ...f, min: e.target.value })} /></Field>
+        <Field label="أعلى سعر (ر.س)"><input inputMode="decimal" value={f.max} onChange={(e) => setF({ ...f, max: e.target.value })} /></Field>
+      </div>
+      <label className="row"><input type="checkbox" checked={f.minors} onChange={(e) => setF({ ...f, minors: e.target.checked })} /> يسمح بالقاصرين</label>
+      <ErrorNote error={act.err} />
+      <div className="row">
+        <button className="btn" disabled={act.busy || !valid} onClick={approve}>إضافة التخصص</button>
+        <input style={{ flex: 1 }} placeholder="سبب الرفض" value={reason} onChange={(e) => setReason(e.target.value)} />
+        <button className="btn danger" disabled={act.busy || reason.trim().length < 3} onClick={reject}>رفض</button>
+      </div>
+    </div>
   );
 }

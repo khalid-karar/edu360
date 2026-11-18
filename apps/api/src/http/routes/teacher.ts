@@ -9,6 +9,7 @@ import { CONDUCT_VERSION, canReapply } from "../../domain/vetting.js";
 import { audit } from "../../services/audit.js";
 import type { Ctx } from "../context.js";
 import { HttpError, parse, uuidParam } from "../errors.js";
+import { myRequests, requestCategory } from "../../services/categoryRequests.js";
 import { guard, me } from "../guard.js";
 
 const MAX_CATEGORIES = 3;
@@ -20,6 +21,7 @@ const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 type Status = "draft" | "submitted" | "interview" | "approved" | "conditional" | "rejected" | "suspended";
 /** Teachers can change their application only while it is not under review or live. */
 const editable = (s: Status) => s === "draft" || s === "rejected";
+const live = (s: Status) => s === "approved" || s === "conditional";
 
 interface ProfileRow {
   status: Status;
@@ -194,6 +196,45 @@ export const teacherRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     return { ok: true };
   });
 
+  // After approval: add one more subject. It stays hidden from learners until a vetting officer accepts proof for it.
+  app.post("/teacher/extra-categories", { preHandler: pre }, async (req, reply) => {
+    const u = me(req);
+    const b = parse(z.object({ categoryId: z.number().int().positive(), priceHalalas: z.number().int().positive() }).strict(), req.body);
+    const p = await profileOf(db, u.id);
+    if (!live(p.status)) throw new HttpError(409, "not_approved");
+    const have = await db.query<{ category_id: number }>("SELECT category_id FROM teacher_categories WHERE teacher_id = $1", [u.id]);
+    if (have.rows.some((r) => r.category_id === b.categoryId)) throw new HttpError(409, "already_selected");
+    if (have.rowCount! >= MAX_CATEGORIES) throw new HttpError(422, "too_many_categories");
+    const band = (await db.query<{ min_price_halalas: number; max_price_halalas: number }>("SELECT min_price_halalas, max_price_halalas FROM categories WHERE active AND id = $1", [b.categoryId])).rows[0];
+    if (!band) throw new HttpError(422, "unknown_category", { categoryId: b.categoryId });
+    if (b.priceHalalas < band.min_price_halalas || b.priceHalalas > band.max_price_halalas) throw new HttpError(422, "price_out_of_band", { categoryId: b.categoryId, min: band.min_price_halalas, max: band.max_price_halalas });
+    await db.query("INSERT INTO teacher_categories (teacher_id, category_id, price_halalas, approved) VALUES ($1,$2,$3,false)", [u.id, b.categoryId, b.priceHalalas]);
+    reply.code(201);
+    return { ok: true };
+  });
+
+  // Withdraw a subject that is still waiting for review (an approved one cannot be removed this way).
+  app.delete("/teacher/extra-categories/:categoryId", { preHandler: pre }, async (req) => {
+    const u = me(req);
+    const categoryId = parse(z.coerce.number().int().positive(), (req.params as { categoryId?: string }).categoryId);
+    const r = await db.tx(async (tx) => {
+      const d = await tx.query("DELETE FROM teacher_categories tc USING teacher_profiles tp WHERE tc.teacher_id = $1 AND tc.category_id = $2 AND tc.approved = false AND tp.user_id = tc.teacher_id AND tp.status IN ('approved','conditional')", [u.id, categoryId]);
+      if (d.rowCount) await tx.query("DELETE FROM credentials WHERE teacher_id = $1 AND category_id = $2", [u.id, categoryId]);
+      return d.rowCount;
+    });
+    if (!r) throw new HttpError(404, "not_found");
+    return { ok: true };
+  });
+
+  // A subject that is not in the list: ask for it. The super admin decides.
+  app.post("/teacher/category-requests", { preHandler: pre }, async (req, reply) => {
+    const b = parse(z.object({ name: z.string().trim().min(2).max(60), note: z.string().trim().max(300).optional() }).strict(), req.body);
+    const r = await requestCategory(db, ctx.now(), me(req).id, b.name, b.note);
+    reply.code(201);
+    return r;
+  });
+  app.get("/teacher/category-requests", { preHandler: guard(ctx, { roles: ["teacher"], anyStatus: true }) }, async (req) => ({ items: await myRequests(db, me(req).id) }));
+
   // Raw file bodies. The guard runs as onRequest, before the body is read, so an anonymous caller cannot make the server buffer megabytes.
   const rawLimit = Math.max(ctx.config.uploadMaxBytes, ctx.config.uploadVideoMaxBytes);
   app.addContentTypeParser([...ALLOWED_TYPES], { parseAs: "buffer", bodyLimit: rawLimit }, (_req, body, done) => done(null, body));
@@ -219,8 +260,9 @@ export const teacherRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
       req.body,
     );
     const p = await profileOf(db, u.id);
-    lockOr(p);
-    const mine = await db.query("SELECT 1 FROM teacher_categories WHERE teacher_id = $1 AND category_id = $2", [u.id, b.categoryId]);
+    const mine = await db.query<{ approved: boolean }>("SELECT approved FROM teacher_categories WHERE teacher_id = $1 AND category_id = $2", [u.id, b.categoryId]);
+    // An approved teacher may add proof only for a subject they added afterwards and that is still waiting for review.
+    if (!(editable(p.status) || (live(p.status) && mine.rows[0]?.approved === false))) throw new HttpError(409, "profile_locked");
     if (!mine.rowCount) throw new HttpError(422, "category_not_selected");
     const n = await db.query<{ n: number }>("SELECT count(*)::int AS n FROM credentials WHERE teacher_id = $1 AND category_id = $2", [u.id, b.categoryId]);
     if ((n.rows[0]?.n ?? 0) >= MAX_CREDENTIALS_PER_CATEGORY) throw new HttpError(422, "too_many_credentials");

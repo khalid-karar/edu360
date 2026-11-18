@@ -31,7 +31,18 @@ export const vettingRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
         WHERE t.status IN ('submitted','interview')
         ORDER BY t.submitted_at ASC`,
     );
+    // Approved teachers who added a subject and uploaded proof for it.
+    const extra = await db.query<{ user_id: string; display_name: string; category_id: number; name_ar: string; pending: number; accepted: number }>(
+      `SELECT t.user_id, u.display_name, tc.category_id, c.name_ar,
+              (SELECT count(*)::int FROM credentials k WHERE k.teacher_id = tc.teacher_id AND k.category_id = tc.category_id AND k.verdict IS NULL) AS pending,
+              (SELECT count(*)::int FROM credentials k WHERE k.teacher_id = tc.teacher_id AND k.category_id = tc.category_id AND k.verdict = 'accepted') AS accepted
+         FROM teacher_categories tc JOIN teacher_profiles t ON t.user_id = tc.teacher_id JOIN users u ON u.id = t.user_id JOIN categories c ON c.id = tc.category_id
+        WHERE tc.approved = false AND t.status IN ('approved','conditional')
+          AND EXISTS (SELECT 1 FROM credentials k WHERE k.teacher_id = tc.teacher_id AND k.category_id = tc.category_id)
+        ORDER BY u.display_name, c.id`,
+    );
     return {
+      extra: extra.rows.map((x) => ({ teacherId: x.user_id, displayName: x.display_name, categoryId: x.category_id, categoryName: x.name_ar, pendingCredentials: x.pending, acceptedCredentials: x.accepted })),
       items: r.rows.map((x) => ({
         teacherId: x.user_id,
         displayName: x.display_name,
@@ -98,13 +109,16 @@ export const vettingRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     const id = uuidParam((req.params as { id?: string }).id);
     const { verdict } = parse(z.object({ verdict: z.enum(["accepted", "rejected"]) }).strict(), req.body);
     const c = (
-      await db.query<{ teacher_id: string; status: string }>(
-        "SELECT c.teacher_id, t.status FROM credentials c JOIN teacher_profiles t ON t.user_id = c.teacher_id WHERE c.id = $1",
+      await db.query<{ teacher_id: string; status: string; cat_approved: boolean | null }>(
+        `SELECT c.teacher_id, t.status, tc.approved AS cat_approved FROM credentials c JOIN teacher_profiles t ON t.user_id = c.teacher_id
+           LEFT JOIN teacher_categories tc ON tc.teacher_id = c.teacher_id AND tc.category_id = c.category_id WHERE c.id = $1`,
         [id],
       )
     ).rows[0];
     if (!c) throw new HttpError(404, "not_found");
-    if (c.status !== "submitted" && c.status !== "interview") throw new HttpError(409, "not_under_review");
+    // Proof is reviewed during an application, or for a subject an approved teacher added and that is not live yet.
+    const underReview = c.status === "submitted" || c.status === "interview" || ((c.status === "approved" || c.status === "conditional") && c.cat_approved === false);
+    if (!underReview) throw new HttpError(409, "not_under_review");
     await db.tx(async (tx) => {
       await tx.query("UPDATE credentials SET verdict=$2, reviewed_by=$3, reviewed_at=$4 WHERE id=$1", [id, verdict, officer.id, ctx.now()]);
       await audit(tx, { actorId: officer.id, action: "vetting.credential_reviewed", targetType: "credential", targetId: id, detail: { verdict, teacherId: c.teacher_id } });
@@ -168,5 +182,34 @@ export const vettingRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
       return { decision: b.decision, total: rubricTotal(rubric) };
     });
     return { ok: true, ...result };
+  });
+
+  // Decide one added subject of an approved teacher. Approval needs accepted proof for that subject.
+  app.post("/admin/vetting/teachers/:id/categories/:categoryId/decision", { preHandler: pre }, async (req) => {
+    const officer = me(req);
+    const id = uuidParam((req.params as { id?: string }).id);
+    const categoryId = parse(z.coerce.number().int().positive(), (req.params as { categoryId?: string }).categoryId);
+    const b = parse(z.object({ decision: z.enum(["approve", "reject"]), reason: z.string().trim().max(300).optional() }).strict(), req.body);
+    if (b.decision === "reject" && !b.reason) throw new HttpError(422, "reason_required");
+    await db.tx(async (tx) => {
+      const row = (await tx.query<{ approved: boolean; status: string; name_ar: string }>(
+        `SELECT tc.approved, t.status, c.name_ar FROM teacher_categories tc JOIN teacher_profiles t ON t.user_id = tc.teacher_id JOIN categories c ON c.id = tc.category_id
+          WHERE tc.teacher_id = $1 AND tc.category_id = $2 FOR UPDATE OF tc`,
+        [id, categoryId],
+      )).rows[0];
+      if (!row) throw new HttpError(404, "not_found");
+      if (row.approved || (row.status !== "approved" && row.status !== "conditional")) throw new HttpError(409, "wrong_status");
+      if (b.decision === "approve") {
+        const ok = (await tx.query<{ n: number }>("SELECT count(*)::int AS n FROM credentials WHERE teacher_id = $1 AND category_id = $2 AND verdict = 'accepted'", [id, categoryId])).rows[0]!.n;
+        if (!ok) throw new HttpError(422, "no_accepted_proof");
+        await tx.query("UPDATE teacher_categories SET approved = true WHERE teacher_id = $1 AND category_id = $2", [id, categoryId]);
+      } else {
+        await tx.query("DELETE FROM credentials WHERE teacher_id = $1 AND category_id = $2", [id, categoryId]);
+        await tx.query("DELETE FROM teacher_categories WHERE teacher_id = $1 AND category_id = $2", [id, categoryId]);
+      }
+      await notify(tx, { userId: id, kind: "extra_category_decided", vars: { who: row.name_ar, decision: b.decision === "approve" ? "approved" : "rejected", ...(b.reason ? { note: b.reason } : {}) }, link: "/portal/apply" }, ctx.now());
+      await audit(tx, { actorId: officer.id, action: "vetting.category_decision", targetType: "user", targetId: id, reason: b.reason ?? null, detail: { categoryId, decision: b.decision } });
+    });
+    return { ok: true };
   });
 };

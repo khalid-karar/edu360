@@ -252,3 +252,24 @@ test("a teacher reads the month statement and downloads it as CSV; finance expor
   const [dl2] = await Promise.all([fin.waitForEvent("download"), fin.click("button:has-text('تنزيل CSV')")]);
   expect(dl2.suggestedFilename()).toMatch(/^ilmak-finance-\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}\.csv$/);
 });
+
+test("a teacher asks for a missing subject and the admin adds it", async ({ page, browser }) => {
+  const noErrors = expectNoPageErrors(page);
+  await signIn(page, "+966500000102");
+  await page.goto("/portal/apply");
+  await page.fill("input[placeholder='مثال: الكيمياء']", "الكيمياء الحيوية");
+  await page.click("button:has-text('إرسال الطلب')");
+  await expect(page.locator("text=وصل طلبك")).toBeVisible();
+
+  const admin = await signInStaff(browser, "+966500000207");
+  await admin.click("button:has-text('التخصصات')");
+  const card = admin.locator("[data-testid^=catreq-]", { hasText: "الكيمياء الحيوية" });
+  await card.locator("input.ltr").first().fill("Biochemistry");
+  await card.locator("button:has-text('إضافة التخصص')").click();
+  await expect(card).toHaveCount(0);
+
+  await page.reload();
+  await expect(page.locator("text=أُضيف")).toBeVisible();
+  await expect(page.locator("select[aria-label='التخصص'] option", { hasText: "الكيمياء الحيوية" })).toHaveCount(1);
+  noErrors();
+});
