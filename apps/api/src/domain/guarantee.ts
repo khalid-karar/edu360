@@ -1,4 +1,4 @@
-import { splitAmount } from "./money.js";
+import { splitPaid } from "./money.js";
 
 /**
  * First-lesson guarantee: a learner's first completed lesson with a teacher can be refunded in full, no questions,
@@ -21,7 +21,7 @@ export type GuaranteeBlock =
   | "payment_not_captured";
 
 /** Half of the teacher's normal net on this lesson, rounded down. The platform pays it; the learner is refunded in full. */
-export function teacherCompensation(capturedHalalas: number): number {
-  const normalNet = splitAmount(capturedHalalas, 0).net; // a first lesson is always in the top commission band
+export function teacherCompensation(capturedHalalas: number, price: number, list: number, bps: number): number {
+  const normalNet = splitPaid(capturedHalalas, price, list, bps).net; // at the rate that was applied when the lesson was settled
   return Math.floor((normalNet * TEACHER_COMPENSATION_SHARE_BPS) / 10_000);
 }

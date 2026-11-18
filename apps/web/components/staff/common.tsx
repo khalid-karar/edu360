@@ -27,7 +27,7 @@ export function useLoad<T>(path: string | null) {
 export function useAct() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<unknown>(null);
-  const run = useCallback(async (method: "POST" | "PATCH", path: string, body?: unknown) => {
+  const run = useCallback(async (method: "POST" | "PATCH" | "PUT", path: string, body?: unknown) => {
     setBusy(true);
     setErr(null);
     try {

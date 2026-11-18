@@ -1,5 +1,6 @@
 import type { Db } from "../db/db.js";
 import { GUARANTEE_MAX_PER_LEARNER, GUARANTEE_TEACHER_MONTHLY_CAP, teacherCompensation, type GuaranteeBlock } from "../domain/guarantee.js";
+import { commissionBps } from "../domain/money.js";
 import { HttpError } from "../http/errors.js";
 import type { PaymentProvider } from "../payments/provider.js";
 import { audit } from "./audit.js";
@@ -77,13 +78,14 @@ export async function claimGuarantee(
     const j = await judge(tx, f, bookingId, payerId, now);
     if (!j.eligible) throw new HttpError(409, "guarantee_unavailable", { reason: j.reason });
 
-    const pay = (await tx.query<{ id: string; psp_reference: string }>("SELECT id, psp_reference FROM payments WHERE booking_id = $1 FOR UPDATE", [bookingId])).rows[0]!;
+    const pay = (await tx.query<{ id: string; psp_reference: string; commission_bps: number | null; price_halalas: number; list_price_halalas: number | null }>(
+      "SELECT p.id, p.psp_reference, p.commission_bps, b.price_halalas, b.list_price_halalas FROM payments p JOIN bookings b ON b.id = p.booking_id WHERE p.booking_id = $1 FOR UPDATE OF p", [bookingId])).rows[0]!;
     const captured = f.captured_halalas!;
     const cur = await d.payments.getPayment(pay.psp_reference);
     if (cur.status === "captured") await d.payments.refund(pay.psp_reference, captured);
     else if (!(cur.status === "refunded" && (cur.refundedAmount ?? 0) === captured)) throw new HttpError(409, "payment_state_conflict", { provider: cur.status });
 
-    const credit = teacherCompensation(captured);
+    const credit = teacherCompensation(captured, pay.price_halalas, pay.list_price_halalas ?? pay.price_halalas, pay.commission_bps ?? commissionBps(0));
     await tx.query("UPDATE payments SET status='refunded', refunded_halalas=$2, commission_halalas=0, platform_credit_halalas=$3 WHERE id=$1", [pay.id, captured, credit]);
     const disp = await tx.query<{ id: string }>(
       `INSERT INTO disputes (booking_id, opened_by, reason, outcome, decided_by, decided_at, created_at, refund_halalas, note, kind)

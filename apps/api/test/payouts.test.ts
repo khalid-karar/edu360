@@ -72,10 +72,10 @@ describe("payout eligibility", () => {
 
 describe("refunds reduce what the teacher earns", () => {
   it("recomputes commission on the amount kept", () => {
-    expect(teacherNet(10_000, 0, 0)).toBe(8000);
-    expect(teacherNet(10_000, 5000, 0)).toBe(4000); // keeps 5000, 20% commission
-    expect(teacherNet(10_000, 10_000, 0)).toBe(0);
-    expect(() => teacherNet(100, 200, 0)).toThrow(RangeError);
+    expect(teacherNet(10_000, 0, 2000)).toBe(8000);
+    expect(teacherNet(10_000, 5000, 2000)).toBe(4000); // keeps 5000, 20% commission
+    expect(teacherNet(10_000, 10_000, 2000)).toBe(0);
+    expect(() => teacherNet(100, 200, 2000)).toThrow(RangeError);
   });
 });
 

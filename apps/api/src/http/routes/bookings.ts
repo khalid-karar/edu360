@@ -16,6 +16,7 @@ import type { Ctx } from "../context.js";
 import { HttpError, parse, uuidParam } from "../errors.js";
 import { joinRoom, roomWindow } from "../../services/room.js";
 import { guard, me } from "../guard.js";
+import { applyCode } from "../../services/discounts.js";
 
 const NewBooking = z
   .object({
@@ -23,8 +24,10 @@ const NewBooking = z
     categoryId: z.number().int().positive(),
     startsAt: z.iso.datetime({ offset: true }),
     learnerId: z.uuid().optional(),
+    discountCode: z.string().trim().min(1).max(40).optional(),
   })
   .strict();
+const Quote = z.object({ teacherId: z.uuid(), categoryId: z.number().int().positive(), code: z.string().trim().min(1).max(40) }).strict();
 const STATUSES = ["awaiting_payment", "requested", "confirmed", "declined", "cancelled", "completed", "no_show_teacher", "no_show_learner"] as const;
 
 interface ViewRow {
@@ -107,10 +110,22 @@ export const bookingRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     const u = me(req);
     const b = parse(NewBooking, req.body);
     if (b.learnerId && u.role !== "guardian") throw new HttpError(403, "forbidden");
-    const booking = await createBooking(deps, u, { teacherId: b.teacherId, categoryId: b.categoryId, startsAt: new Date(b.startsAt), learnerId: b.learnerId });
+    const booking = await createBooking(deps, u, { teacherId: b.teacherId, categoryId: b.categoryId, startsAt: new Date(b.startsAt), learnerId: b.learnerId, discountCode: b.discountCode });
     reply.code(201);
     // The client now collects the card hold for exactly this amount, tagging the payment with booking_id.
-    return { bookingId: booking.id, status: booking.status, amountHalalas: booking.price_halalas, currency: "SAR", payBy: booking.expires_at };
+    return { bookingId: booking.id, status: booking.status, amountHalalas: booking.price_halalas, listHalalas: booking.list_price_halalas ?? booking.price_halalas, currency: "SAR", payBy: booking.expires_at };
+  });
+
+  // What a code would take off, before booking. Nothing is reserved or counted.
+  app.post("/bookings/quote", { preHandler: bookers }, async (req) => {
+    const u = me(req);
+    const q = parse(Quote, req.body);
+    const price = await db.query<{ price_halalas: number }>(
+      "SELECT tc.price_halalas FROM teacher_categories tc JOIN categories c ON c.id = tc.category_id WHERE tc.teacher_id = $1 AND tc.category_id = $2 AND tc.approved AND c.active", [q.teacherId, q.categoryId]);
+    if (!price.rows[0]) throw new HttpError(422, "category_unavailable");
+    const list = price.rows[0].price_halalas;
+    const a = await db.tx((tx) => applyCode(tx, q.code, u.id, list, ctx.now()));
+    return { listHalalas: list, discountHalalas: a.discountHalalas, payHalalas: a.payHalalas };
   });
 
   // The client says "I paid, here is the payment id". We do not take its word: the provider is asked.

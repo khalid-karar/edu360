@@ -6,6 +6,8 @@ import type { Ctx } from "../context.js";
 import { HttpError, isUniqueViolation, parse, uuidParam } from "../errors.js";
 import { decideRequest, listRequests } from "../../services/categoryRequests.js";
 import { guard, me } from "../guard.js";
+import { createCode, listCodes, NewCode, setCodeActive } from "../../services/discounts.js";
+import { foundingCount, getPolicy, PolicySchema, setPolicy } from "../../services/settings.js";
 
 const Band = { minPriceHalalas: z.number().int().positive(), maxPriceHalalas: z.number().int().positive() };
 const CreateCategory = z
@@ -137,11 +139,39 @@ export const adminRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     );
     const r = await db.query<{ id: string; actor_id: string | null; action: string; target_type: string; target_id: string; reason: string | null; detail: unknown; created_at: Date }>(
       `SELECT id::text AS id, actor_id, action, target_type, target_id, reason, detail, created_at
-         FROM audit_log WHERE ($2::bigint IS NULL OR id < $2) ORDER BY id DESC LIMIT $1`,
+         FROM audit_log WHERE ($2::bigint IS NULL OR id < $2) ORDER BY audit_log.id DESC LIMIT $1`,
       [q.limit, q.before ?? null],
     );
     return {
       items: r.rows.map((x) => ({ id: Number(x.id), actorId: x.actor_id, action: x.action, targetType: x.target_type, targetId: x.target_id, reason: x.reason, detail: x.detail, at: x.created_at })),
     };
+  });
+
+  // ── pricing: commission policy and discount codes (super admin only) ──
+  app.get("/admin/settings/commission", { preHandler: superAdmin }, async () => {
+    const policy = await getPolicy(db);
+    return { policy, foundingTaken: await foundingCount(db) };
+  });
+
+  app.put("/admin/settings/commission", { preHandler: superAdmin }, async (req) => {
+    const policy = parse(PolicySchema, req.body);
+    await setPolicy(db, me(req).id, policy, ctx.now());
+    return { policy, foundingTaken: await foundingCount(db) };
+  });
+
+  app.get("/admin/discount-codes", { preHandler: superAdmin }, async () => ({ items: await listCodes(db, ctx.now()) }));
+
+  app.post("/admin/discount-codes", { preHandler: superAdmin }, async (req, reply) => {
+    const input = parse(NewCode, req.body);
+    const created = await createCode(db, me(req).id, input, ctx.now());
+    reply.code(201);
+    return created;
+  });
+
+  app.post("/admin/discount-codes/:id/active", { preHandler: superAdmin }, async (req) => {
+    const id = uuidParam((req.params as { id?: string }).id);
+    const { active } = parse(z.object({ active: z.boolean() }).strict(), req.body);
+    await setCodeActive(db, me(req).id, id, active);
+    return { ok: true };
   });
 };

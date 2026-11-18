@@ -1,6 +1,6 @@
 import type { Db } from "../db/db.js";
 import { DISPUTE_WINDOW_HOURS, buildPayoutRun, type PayoutBatch, type PayoutCandidate, type SkipReason, type TeacherPayoutState } from "../domain/payouts.js";
-import { splitAmount } from "../domain/money.js";
+import { commissionBps, DEFAULT_POLICY, splitPaid } from "../domain/money.js";
 import { HttpError, isUniqueViolation } from "../http/errors.js";
 import type { PaymentProvider } from "../payments/provider.js";
 import { audit } from "./audit.js";
@@ -54,8 +54,8 @@ export async function decideDispute(d: FinanceDeps, staffId: string, disputeId: 
     if (!disp) throw new HttpError(404, "not_found");
     if (disp.outcome) throw new HttpError(409, "already_decided");
     const p = (
-      await tx.query<{ id: string; psp_reference: string; status: string; captured_halalas: number; payout_id: string | null; learner_id: string; teacher_id: string }>(
-        `SELECT p.id, p.psp_reference, p.status, p.captured_halalas, p.payout_id, b.learner_id, b.teacher_id
+      await tx.query<{ id: string; psp_reference: string; status: string; captured_halalas: number; payout_id: string | null; learner_id: string; teacher_id: string; commission_bps: number | null; price_halalas: number; list_price_halalas: number | null }>(
+        `SELECT p.id, p.psp_reference, p.status, p.captured_halalas, p.payout_id, p.commission_bps, b.learner_id, b.teacher_id, b.price_halalas, b.list_price_halalas
            FROM payments p JOIN bookings b ON b.id = p.booking_id WHERE p.booking_id = $1 FOR UPDATE OF p`,
         [disp.booking_id],
       )
@@ -79,8 +79,10 @@ export async function decideDispute(d: FinanceDeps, staffId: string, disputeId: 
         await tx.query<{ n: number }>("SELECT count(*)::int AS n FROM bookings WHERE learner_id=$1 AND teacher_id=$2 AND status='completed' AND id <> $3", [p.learner_id, p.teacher_id, disp.booking_id])
       ).rows[0]!.n;
       const kept = p.captured_halalas - refund;
-      const commission = kept === 0 ? 0 : splitAmount(kept, prior).commission;
-      await tx.query("UPDATE payments SET status=$2, refunded_halalas=$3, commission_halalas=$4 WHERE id=$1", [p.id, kept === 0 ? "refunded" : "partially_refunded", refund, commission]);
+      // The rate that applied when the lesson was settled; payments from before rates were stored fall back to the default schedule.
+      const bps = p.commission_bps ?? commissionBps(prior, DEFAULT_POLICY.standard);
+      const split = kept === 0 ? { commission: 0, credit: 0 } : splitPaid(kept, p.price_halalas, p.list_price_halalas ?? p.price_halalas, bps);
+      await tx.query("UPDATE payments SET status=$2, refunded_halalas=$3, commission_halalas=$4, platform_credit_halalas=$5 WHERE id=$1", [p.id, kept === 0 ? "refunded" : "partially_refunded", refund, split.commission, split.credit]);
     }
     await tx.query("UPDATE disputes SET outcome=$2, refund_halalas=$3, decided_by=$4, decided_at=$5, note=$6 WHERE id=$1", [disputeId, decision.outcome, refund, staffId, now, note]);
     await audit(tx, { actorId: staffId, action: "finance.dispute_decided", targetType: "dispute", targetId: disputeId, reason: note, detail: { outcome: decision.outcome, refundHalalas: refund, bookingId: disp.booking_id } });

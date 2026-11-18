@@ -244,6 +244,30 @@ describe("vetting", () => {
     expect(r2.body.error).toBe("no_accepted_credential");
   });
 
+  it("gives the first N approved teachers founding status, and only once", async () => {
+    const boss = await h.staff("super_admin");
+    const policy = (await h.call("GET", "/api/admin/settings/commission", { token: boss.token })).body.policy;
+    expect((await h.call("PUT", "/api/admin/settings/commission", { token: boss.token, body: { ...policy, founderLimit: (await h.db.query<{ n: number }>("SELECT count(*)::int AS n FROM teacher_profiles WHERE founding")).rows[0]!.n + 1 } })).status).toBe(200);
+    const officer = await h.staff("vetting_officer");
+    const approve = async (nid: string) => {
+      const t = await readyTeacher(nid);
+      await h.call("POST", "/api/teacher/submit", { token: t.token });
+      await h.call("POST", `/api/admin/vetting/credentials/${t.credentialId}/review`, { token: officer.token, body: { verdict: "accepted" } });
+      await h.call("POST", `/api/admin/vetting/teachers/${t.id}/interview`, { token: officer.token });
+      const r = await h.call("POST", `/api/admin/vetting/teachers/${t.id}/decision`, { token: officer.token, body: { decision: "approved", rubric: rubric(5, 5, 5, 5) } });
+      expect(r.status).toBe(200);
+      return t.id;
+    };
+    const flag = async (id: string) => (await h.db.query<{ founding: boolean }>("SELECT founding FROM teacher_profiles WHERE user_id = $1", [id])).rows[0]!.founding;
+    const first = await approve("1000000172");
+    const second = await approve("1000000182");
+    expect(await flag(first)).toBe(true);
+    expect(await flag(second)).toBe(false);
+    // Raising the limit later does not turn an existing teacher into a founder.
+    await h.call("PUT", "/api/admin/settings/commission", { token: boss.token, body: { ...policy, founderLimit: 1000 } });
+    expect(await flag(second)).toBe(false);
+  });
+
   it("makes a conditional approval adults-only and demands a stated condition", async () => {
     const t = await readyTeacher("1000000152");
     await h.call("POST", "/api/teacher/submit", { token: t.token });

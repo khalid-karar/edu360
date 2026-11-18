@@ -31,6 +31,9 @@ function Body() {
   const [crossOk, setCrossOk] = useState(false);
   const [err, setErr] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  const [code, setCode] = useState("");
+  const [quote, setQuote] = useState<{ code: string; discountHalalas: number; payHalalas: number } | null>(null);
+  const [codeErr, setCodeErr] = useState<unknown>(null);
 
   async function load(tid: string, child: string | null) {
     try {
@@ -53,6 +56,14 @@ function Body() {
   const days = useMemo(() => [...new Set((slots ?? []).map(dayKey))], [slots]);
   const price = t?.categories.find((c) => c.categoryId === cat)?.priceHalalas;
 
+  async function applyCodeNow() {
+    setCodeErr(null); setQuote(null);
+    try {
+      const q = await api<{ discountHalalas: number; payHalalas: number }>("POST", "/bookings/quote", { teacherId: id, categoryId: cat, code: code.trim() });
+      setQuote({ code: code.trim(), discountHalalas: q.discountHalalas, payHalalas: q.payHalalas });
+    } catch (e) { setCodeErr(e); }
+  }
+
   async function approve() {
     setBusy(true);
     setErr(null);
@@ -70,7 +81,7 @@ function Body() {
     setBusy(true);
     setErr(null);
     try {
-      const b = await api<{ bookingId: string }>("POST", "/bookings", { teacherId: id, categoryId: cat, startsAt: slot, ...(childId ? { learnerId: childId } : {}) });
+      const b = await api<{ bookingId: string }>("POST", "/bookings", { teacherId: id, categoryId: cat, startsAt: slot, ...(quote ? { discountCode: quote.code } : {}), ...(childId ? { learnerId: childId } : {}) });
       router.push(`/portal/booking?id=${b.bookingId}&pay=1`);
     } catch (e) {
       setErr(e);
@@ -128,7 +139,7 @@ function Body() {
           <div className="stack">
             <div className="tabs" role="group" aria-label="التخصص">
               {t.categories.map((c) => (
-                <button key={c.categoryId} aria-pressed={cat === c.categoryId} onClick={() => setCat(c.categoryId)}>{c.nameAr} · {sar(c.priceHalalas)}</button>
+                <button key={c.categoryId} aria-pressed={cat === c.categoryId} onClick={() => { setCat(c.categoryId); setQuote(null); }}>{c.nameAr} · {sar(c.priceHalalas)}</button>
               ))}
             </div>
             {slots === null ? <Spinner /> : days.length === 0 ? (
@@ -150,10 +161,16 @@ function Body() {
             )}
             {slot && price !== undefined && (
               <div className="note info">
-                <b>{dateTime(slot)}</b> · درس مدته ساعة · <b>{sar(price)}</b>
+                <b>{dateTime(slot)}</b> · درس مدته ساعة · {quote ? <><s className="muted">{sar(price)}</s> <b data-testid="pay-price">{sar(quote.payHalalas)}</b></> : <b>{sar(price)}</b>}
                 <div className="small">لا يُخصم المبلغ الآن: يُحجز على بطاقتك حتى ينتهي الدرس.</div>
               </div>
             )}
+            <div className="row wrap">
+              <input value={code} onChange={(e) => { setCode(e.target.value); setQuote(null); }} placeholder="كود الخصم (اختياري)" aria-label="كود الخصم" className="ltr" style={{ maxWidth: 200 }} />
+              <button className="btn ghost" disabled={!code.trim() || cat === null} onClick={applyCodeNow}>تطبيق</button>
+              {quote && <span className="badge ok">وفّرت {sar(quote.discountHalalas)}</span>}
+            </div>
+            <ErrorNote error={codeErr} />
             {!needsApproval && <ErrorNote error={err} />}
             <button className="btn coral" disabled={!slot || cat === null || busy} onClick={book}>متابعة للدفع</button>
             {user?.role === "guardian" && !childId && <p className="muted small">تحجز لنفسك. لحجز درس لأحد أبنائك ارجع للبحث واختر الطفل.</p>}

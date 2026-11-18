@@ -1,17 +1,18 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ErrorNote, Field, Spinner } from "../portal-ui";
 import { dateTime, sar } from "../../lib/format";
 import { Tabs, useAct, useLoad } from "./common";
 
 export function AdminConsole() {
-  const [tab, setTab] = useState<"stats" | "schools" | "cats" | "audit">("stats");
+  const [tab, setTab] = useState<"stats" | "schools" | "cats" | "pricing" | "audit">("stats");
   return (
     <>
-      <Tabs value={tab} onChange={setTab} items={[{ id: "stats", label: "الإحصاءات" }, { id: "schools", label: "المدارس" }, { id: "cats", label: "التخصصات" }, { id: "audit", label: "سجل التدقيق" }]} />
+      <Tabs value={tab} onChange={setTab} items={[{ id: "stats", label: "الإحصاءات" }, { id: "schools", label: "المدارس" }, { id: "cats", label: "التخصصات" }, { id: "pricing", label: "الأسعار والخصومات" }, { id: "audit", label: "سجل التدقيق" }]} />
       {tab === "stats" && <Analytics />}
       {tab === "schools" && <Schools />}
       {tab === "cats" && <Categories />}
+      {tab === "pricing" && <Pricing />}
       {tab === "audit" && <Audit />}
     </>
   );
@@ -244,6 +245,126 @@ function RequestCard({ r, onDone }: { r: CatReq; onDone: () => void }) {
         <input style={{ flex: 1 }} placeholder="سبب الرفض" value={reason} onChange={(e) => setReason(e.target.value)} />
         <button className="btn danger" disabled={act.busy || reason.trim().length < 3} onClick={reject}>رفض</button>
       </div>
+    </div>
+  );
+}
+
+// ───────────── pricing: commission policy and discount codes ─────────────
+
+interface Sched { initialBps: number; afterBps: number; threshold: number }
+interface Policy { founderLimit: number; founder: Sched; standard: Sched }
+const pct = (bps: number) => String(bps / 100);
+const toBps = (p: string) => Math.round(Number(p) * 100);
+
+function Pricing() {
+  return (
+    <>
+      <Commission />
+      <Codes />
+    </>
+  );
+}
+
+function Commission() {
+  const q = useLoad<{ policy: Policy; foundingTaken: number }>("/admin/settings/commission");
+  const act = useAct();
+  const [f, setF] = useState<{ limit: string; fi: string; fa: string; ft: string; si: string; sa: string; st: string } | null>(null);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => {
+    const p = q.data?.policy;
+    if (p) setF({ limit: String(p.founderLimit), fi: pct(p.founder.initialBps), fa: pct(p.founder.afterBps), ft: String(p.founder.threshold), si: pct(p.standard.initialBps), sa: pct(p.standard.afterBps), st: String(p.standard.threshold) });
+  }, [q.data]);
+  if (!q.data || !f) return <Spinner />;
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => { setSaved(false); setF({ ...f, [k]: e.target.value }); };
+  const ok = [f.fi, f.fa, f.si, f.sa].every((v) => v !== "" && Number(v) >= 0 && Number(v) <= 50) && [f.ft, f.st].every((v) => Number.isInteger(Number(v)) && Number(v) >= 1) && Number.isInteger(Number(f.limit)) && Number(f.limit) >= 0;
+  async function save() {
+    const body: Policy = { founderLimit: Number(f!.limit), founder: { initialBps: toBps(f!.fi), afterBps: toBps(f!.fa), threshold: Number(f!.ft) }, standard: { initialBps: toBps(f!.si), afterBps: toBps(f!.sa), threshold: Number(f!.st) } };
+    if (await act.run("PUT", "/admin/settings/commission", body)) { setSaved(true); q.reload(); }
+  }
+  const row = (label: string, i: keyof typeof f, a: keyof typeof f, t: keyof typeof f) => (
+    <div className="card stack">
+      <b>{label}</b>
+      <div className="row wrap">
+        <Field label="العمولة في الدروس الأولى (%)"><input inputMode="decimal" value={f[i]} onChange={set(i)} /></Field>
+        <Field label="عدد الدروس الأولى مع نفس المتعلّم"><input inputMode="numeric" value={f[t]} onChange={set(t)} /></Field>
+        <Field label="العمولة بعدها (%)"><input inputMode="decimal" value={f[a]} onChange={set(a)} /></Field>
+      </div>
+      <p className="muted small">على درس بـ100 ر.س: تأخذ المنصة {Number(f[i]) || 0} ر.س في الدروس الأولى ثم {Number(f[a]) || 0} ر.س.</p>
+    </div>
+  );
+  return (
+    <div className="stack">
+      <h2>العمولة</h2>
+      <p className="muted small">تُحسب على سعر المعلّم، لكل متعلّم مع كل معلّم على حدة. التغيير يسري على الدروس القادمة فقط، وما سُوّي سابقاً لا يتغيّر.</p>
+      <div className="card stack">
+        <Field label="عدد المعلّمين المؤسسين (أول من يُعتمد)"><input inputMode="numeric" value={f.limit} onChange={set("limit")} style={{ maxWidth: 140 }} /></Field>
+        <span className="muted small" data-testid="founding-taken">اعتُمد منهم حتى الآن: {q.data.foundingTaken} من {q.data.policy.founderLimit}. من يُعتمد بعد اكتمال العدد يُعامل كمعلّم عادي، ورفع العدد لاحقاً لا يغيّر من اعتُمد قبله.</span>
+      </div>
+      {row("المعلّمون المؤسسون", "fi", "fa", "ft")}
+      {row("بقية المعلّمين", "si", "sa", "st")}
+      <ErrorNote error={act.err} />
+      {saved && <div className="note info">حُفظت الأسعار.</div>}
+      <div><button className="btn" disabled={act.busy || !ok} onClick={save}>حفظ</button></div>
+    </div>
+  );
+}
+
+interface Code { id: string; code: string; label: string; kind: "percent" | "fixed"; value: number; maxUses: number | null; perUserLimit: number; startsAt: string | null; endsAt: string | null; active: boolean; used: number }
+
+function Codes() {
+  const q = useLoad<{ items: Code[] }>("/admin/discount-codes");
+  const act = useAct();
+  const blank = { code: "", label: "", kind: "percent" as "percent" | "fixed", value: "", maxUses: "", perUser: "1", from: "", to: "" };
+  const [f, setF] = useState(blank);
+  const valid = /^[A-Za-z0-9_-]{3,24}$/.test(f.code) && f.label.trim().length >= 2 && Number(f.value) > 0 && (f.kind === "fixed" || Number(f.value) <= 90);
+  async function add() {
+    const body = {
+      code: f.code.trim(), label: f.label.trim(), kind: f.kind,
+      value: f.kind === "percent" ? Math.round(Number(f.value)) : Math.round(Number(f.value) * 100),
+      maxUses: f.maxUses ? Number(f.maxUses) : null, perUserLimit: Number(f.perUser) || 1,
+      startsAt: f.from ? `${f.from}T00:00:00+03:00` : null, endsAt: f.to ? `${f.to}T23:59:59+03:00` : null,
+    };
+    if (await act.run("POST", "/admin/discount-codes", body)) { setF(blank); q.reload(); }
+  }
+  async function toggle(c: Code) { if (await act.run("POST", `/admin/discount-codes/${c.id}/active`, { active: !c.active })) q.reload(); }
+  const when = (c: Code) => (c.startsAt || c.endsAt ? `${c.startsAt ? dateTime(c.startsAt) : "…"} ← ${c.endsAt ? dateTime(c.endsAt) : "…"}` : "بلا تاريخ");
+  return (
+    <div className="stack">
+      <h2>كودات الخصم</h2>
+      <p className="muted small">الخصم تتحمّله المنصة: يدفع المتعلّم أقل، ويستلم المعلّم صافيه كاملاً كأن الخصم لم يكن. أقل مبلغ يدفعه المتعلّم ريال واحد.</p>
+      <div className="card stack">
+        <div className="row wrap">
+          <Field label="الكود (إنجليزي/أرقام)"><input className="ltr" value={f.code} onChange={(e) => setF({ ...f, code: e.target.value.toUpperCase() })} placeholder="FOUNDING26" /></Field>
+          <Field label="الوصف"><input value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} placeholder="يوم التأسيس" /></Field>
+        </div>
+        <div className="row wrap">
+          <Field label="النوع">
+            <select value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value as "percent" | "fixed" })} aria-label="نوع الخصم">
+              <option value="percent">نسبة %</option>
+              <option value="fixed">مبلغ ثابت (ر.س)</option>
+            </select>
+          </Field>
+          <Field label={f.kind === "percent" ? "النسبة (حتى 90)" : "المبلغ (ر.س)"}><input inputMode="decimal" value={f.value} onChange={(e) => setF({ ...f, value: e.target.value })} /></Field>
+          <Field label="أقصى عدد استخدامات (اختياري)"><input inputMode="numeric" value={f.maxUses} onChange={(e) => setF({ ...f, maxUses: e.target.value })} /></Field>
+          <Field label="لكل مستخدم"><input inputMode="numeric" value={f.perUser} onChange={(e) => setF({ ...f, perUser: e.target.value })} /></Field>
+        </div>
+        <div className="row wrap">
+          <Field label="يبدأ (اختياري)"><input type="date" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} /></Field>
+          <Field label="ينتهي (اختياري)"><input type="date" value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} /></Field>
+        </div>
+        <ErrorNote error={act.err} />
+        <div><button className="btn" disabled={act.busy || !valid} onClick={add}>إنشاء الكود</button></div>
+      </div>
+      {q.data?.items.length === 0 && <div className="empty">لا توجد كودات بعد.</div>}
+      {q.data?.items.map((c) => (
+        <div key={c.id} className="card tight" data-testid={`code-${c.code}`}>
+          <div className="row between">
+            <span><b className="ltr">{c.code}</b> · {c.label}</span>
+            <span className="row"><span className={`badge ${c.active ? "ok" : "wait"}`}>{c.active ? "مفعّل" : "موقوف"}</span><button className="btn ghost" disabled={act.busy} onClick={() => toggle(c)}>{c.active ? "إيقاف" : "تفعيل"}</button></span>
+          </div>
+          <span className="muted small">{c.kind === "percent" ? `${c.value}%` : sar(c.value)} · استُخدم {c.used}{c.maxUses ? ` من ${c.maxUses}` : ""} · {c.perUserLimit} لكل مستخدم · {when(c)}</span>
+        </div>
+      ))}
     </div>
   );
 }

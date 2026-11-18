@@ -273,3 +273,34 @@ test("a teacher asks for a missing subject and the admin adds it", async ({ page
   await expect(page.locator("select[aria-label='التخصص'] option", { hasText: "الكيمياء الحيوية" })).toHaveCount(1);
   noErrors();
 });
+
+test("the admin sets the commission and a discount code, and a learner uses it at booking", async ({ page, browser }) => {
+  const noErrors = expectNoPageErrors(page);
+  const admin = await signInStaff(browser, "+966500000207", 1);
+  await admin.click("button:has-text('الأسعار والخصومات')");
+  await expect(admin.locator("[data-testid=founding-taken]")).toContainText("من 100");
+  // 12 % for ordinary teachers in the first lessons, then save
+  const std = admin.locator(".card", { hasText: "بقية المعلّمين" });
+  await std.locator("input").first().fill("12");
+  await admin.click("button:has-text('حفظ')");
+  await expect(admin.locator("text=حُفظت الأسعار")).toBeVisible();
+
+  await admin.locator("input[placeholder='FOUNDING26']").fill("YAUM-TASEES");
+  await admin.locator("input[placeholder='يوم التأسيس']").fill("يوم التأسيس");
+  await admin.locator("label", { hasText: "النسبة" }).locator("input").fill("20");
+  await admin.click("button:has-text('إنشاء الكود')");
+  await expect(admin.locator("[data-testid='code-YAUM-TASEES']")).toBeVisible();
+
+  await signIn(page, "+966500000303");
+  await page.waitForURL("**/portal/search");
+  await page.locator("a.card").first().click();
+  await page.locator("button.slot").first().click();
+  await page.fill("input[aria-label='كود الخصم']", "bad-code");
+  await page.click("button:has-text('تطبيق')");
+  await expect(page.locator("text=كود الخصم غير صحيح")).toBeVisible();
+  await page.fill("input[aria-label='كود الخصم']", "yaum-tasees");
+  await page.click("button:has-text('تطبيق')");
+  await expect(page.locator("text=وفّرت")).toBeVisible();
+  await expect(page.locator("[data-testid=pay-price]")).toBeVisible();
+  noErrors();
+});

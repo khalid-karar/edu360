@@ -122,6 +122,13 @@ export async function saveProtectedFile(path: string, filename: string): Promise
 }
 
 const MESSAGES: Record<string, string> = {
+  code_invalid: "كود الخصم غير صحيح أو غير مفعّل.",
+  code_not_started: "كود الخصم لم يبدأ بعد.",
+  code_expired: "انتهت صلاحية كود الخصم.",
+  code_exhausted: "انتهت الكمية المتاحة من هذا الكود.",
+  code_already_used: "استخدمت هذا الكود من قبل.",
+  code_not_applicable: "لا ينطبق هذا الكود على هذا الدرس.",
+  code_taken: "هذا الكود مستخدم. اختر كوداً آخر.",
   category_exists: "هذا التخصص موجود في القائمة. اخترْه منها.",
   already_requested: "طلبتَ هذا التخصص من قبل وهو بانتظار القرار.",
   too_many_pending_requests: "لديك 3 طلبات بانتظار القرار. انتظر الرد عليها أولاً.",

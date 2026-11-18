@@ -16,7 +16,9 @@ import {
   type BookingStatus,
   type Settlement,
 } from "../domain/booking.js";
-import { splitAmount } from "../domain/money.js";
+import { commissionBps, splitPaid } from "../domain/money.js";
+import { applyCode } from "./discounts.js";
+import { scheduleFor } from "./settings.js";
 import { payoutEligibleAt } from "../domain/payouts.js";
 import { HttpError, isUniqueViolation } from "../http/errors.js";
 import { ProviderError, confirmAuthorization, type PaymentProvider } from "../payments/provider.js";
@@ -43,6 +45,9 @@ export interface BookingRow {
   starts_at: Date;
   duration_min: number;
   price_halalas: number;
+  /** The teacher's price when a discount code lowered what the learner pays. */
+  list_price_halalas: number | null;
+  discount_code_id: string | null;
   created_at: Date;
   expires_at: Date | null;
   cancelled_by: string | null;
@@ -113,6 +118,8 @@ export interface NewBooking {
   startsAt: Date;
   /** A child of the caller. Omit to book for yourself. */
   learnerId?: string | undefined;
+  /** Optional discount code. The platform funds the discount; the teacher still earns the same. */
+  discountCode?: string | undefined;
 }
 
 /** Reserves the slot for 15 minutes while the learner pays. Nothing is charged or held on the card yet. */
@@ -189,10 +196,11 @@ export async function createBooking(d: BookingDeps, who: Actor, input: NewBookin
     if (!slotIsFree(lesson, winSpans, teacherBusy)) throw new HttpError(409, "slot_taken");
     if ((await clash("learner_id", learnerId)).rows.length) throw new HttpError(409, "learner_busy");
 
+    const applied = input.discountCode ? await applyCode(tx, input.discountCode, who.id, cat.price_halalas, now) : undefined;
     const r = await tx.query<BookingRow>(
-      `INSERT INTO bookings (learner_id, payer_id, teacher_id, category_id, status, starts_at, duration_min, price_halalas, created_at, expires_at)
-       VALUES ($1,$2,$3,$4,'awaiting_payment',$5,$6,$7,$8,$9) RETURNING *`,
-      [learnerId, who.id, input.teacherId, input.categoryId, input.startsAt, LESSON_MINUTES, cat.price_halalas, now, new Date(now.getTime() + PAYMENT_HOLD_MINUTES * MIN)],
+      `INSERT INTO bookings (learner_id, payer_id, teacher_id, category_id, status, starts_at, duration_min, price_halalas, list_price_halalas, discount_code_id, created_at, expires_at)
+       VALUES ($1,$2,$3,$4,'awaiting_payment',$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      [learnerId, who.id, input.teacherId, input.categoryId, input.startsAt, LESSON_MINUTES, applied?.payHalalas ?? cat.price_halalas, applied ? cat.price_halalas : null, applied?.codeId ?? null, now, new Date(now.getTime() + PAYMENT_HOLD_MINUTES * MIN)],
     );
     return r.rows[0]!;
   });
@@ -287,10 +295,11 @@ async function applySettlement(tx: Db, d: BookingDeps, b: BookingRow, p: Payment
     "SELECT count(*)::int AS n FROM bookings WHERE learner_id=$1 AND teacher_id=$2 AND status='completed' AND id <> $3",
     [b.learner_id, b.teacher_id, b.id],
   );
-  const split = splitAmount(captured, prior.rows[0]?.n ?? 0);
+  const bps = commissionBps(prior.rows[0]?.n ?? 0, await scheduleFor(tx, b.teacher_id));
+  const split = splitPaid(captured, b.price_halalas, b.list_price_halalas ?? b.price_halalas, bps);
   await tx.query(
-    `UPDATE payments SET status='captured', captured_halalas=$2, commission_halalas=$3, captured_at=$4, payout_eligible_at=$5 WHERE id=$1`,
-    [p.id, captured, split.commission, now, payoutEligibleAt(now)],
+    `UPDATE payments SET status='captured', captured_halalas=$2, commission_halalas=$3, commission_bps=$6, platform_credit_halalas=$7, captured_at=$4, payout_eligible_at=$5 WHERE id=$1`,
+    [p.id, captured, split.commission, now, payoutEligibleAt(now), bps, split.credit],
   );
 }
 

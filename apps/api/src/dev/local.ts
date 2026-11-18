@@ -74,8 +74,8 @@ for (const t of teachers) {
   const id = u.rows[0]!.id;
   await db.query("INSERT INTO identity_verifications (user_id, national_id_hash, full_name, gender, date_of_birth) VALUES ($1,$2,$3,$4,'1988-04-12')", [id, randomBytes(16).toString("hex"), t.name, t.gender]);
   await db.query(
-    `INSERT INTO teacher_profiles (user_id, status, bio, languages, iban, iban_holder_name, approved_at, freelance_document_no, completed_sessions)
-     VALUES ($1,'approved',$2,$3,'SA0380000000608010167519',$4,now() - interval '60 days','FL-100200',$5)`,
+    `INSERT INTO teacher_profiles (user_id, status, bio, languages, iban, iban_holder_name, approved_at, freelance_document_no, completed_sessions, founding)
+     VALUES ($1,'approved',$2,$3,'SA0380000000608010167519',$4,now() - interval '60 days','FL-100200',$5,true)`,
     [id, t.bio, t.name === "ريم الدوسري" ? ["ar", "en"] : ["ar"], t.name, 20 + Math.floor(Math.random() * 80)],
   );
   for (const [slug, price] of t.cats) await db.query("INSERT INTO teacher_categories (teacher_id, category_id, price_halalas, approved) VALUES ($1,$2,$3,true)", [id, catIds[slug]!, price]);
@@ -113,6 +113,9 @@ async function seedLesson(learnerId: string, teacherMobile: string, quranCat: nu
   const h = await db.query<{ id: string }>("INSERT INTO users (role, status, mobile, display_name) VALUES ('learner','active','+966500000302','هند الزهراني') RETURNING id");
   await db.query("INSERT INTO identity_verifications (user_id, national_id_hash, full_name, gender, date_of_birth) VALUES ($1,$2,'هند الزهراني','female','2001-05-11')", [h.rows[0]!.id, randomBytes(16).toString("hex")]);
   await seedLesson(h.rows[0]!.id, "+966500000102", catIds["quran"]!, 3);
+  // Sultan: a learner with no history, for trying bookings and discount codes from scratch.
+  const s = await db.query<{ id: string }>("INSERT INTO users (role, status, mobile, display_name) VALUES ('learner','active','+966500000303','سلطان الغامدي') RETURNING id");
+  await db.query("INSERT INTO identity_verifications (user_id, national_id_hash, full_name, gender, date_of_birth) VALUES ($1,$2,'سلطان الغامدي','male','1999-02-20')", [s.rows[0]!.id, randomBytes(16).toString("hex")]);
 }
 
 // A teacher application waiting for the vetting officer.

@@ -49,10 +49,15 @@ export const WEBM = Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer
 let phoneSeq = 0;
 export const nextPhone = () => `+9665${String(10_000_000 + ++phoneSeq)}`;
 
-export async function makeHarness(opts: { metricsToken?: string } = {}) {
+export async function makeHarness(opts: { metricsToken?: string; defaultRates?: boolean } = {}) {
   const pg = new PGlite();
   const db = pgliteDb(pg);
   await migrate(db);
+  // Most tests were written against a fixed 20% / 12%-after-5 schedule; keep that unless a test asks for the shipped defaults.
+  if (!opts.defaultRates) {
+    const legacy = { initialBps: 2000, afterBps: 1200, threshold: 5 };
+    await db.query("UPDATE platform_settings SET value = $1 WHERE key = 'commission'", [JSON.stringify({ founderLimit: 100, founder: legacy, standard: legacy })]);
+  }
 
   let t = new Date("2026-11-06T09:00:00Z").getTime();
   const clock = {

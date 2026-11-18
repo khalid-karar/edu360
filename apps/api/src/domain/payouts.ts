@@ -1,4 +1,4 @@
-import { splitAmount, type Halalas } from "./money.js";
+import { splitPaid, type Halalas } from "./money.js";
 
 export const DISPUTE_WINDOW_HOURS = 48;
 export const NEW_TEACHER_FIRST_PAYOUT_DAYS = 14;
@@ -12,9 +12,9 @@ export function payoutEligibleAt(capturedAt: Date): Date {
 }
 
 /** Teacher's net after a (partial) refund: commission is recomputed on what was actually kept. */
-export function teacherNet(captured: Halalas, refunded: Halalas, priorSessions: number): Halalas {
+export function teacherNet(captured: Halalas, refunded: Halalas, bps: number, price: Halalas = captured, list: Halalas = price): Halalas {
   if (refunded > captured) throw new RangeError("refunded cannot exceed captured");
-  return splitAmount(captured - refunded, priorSessions).net;
+  return splitPaid(captured - refunded, price, list, bps).net;
 }
 
 export interface PayoutCandidate {

@@ -7,6 +7,7 @@ import { notify } from "../../services/notifications.js";
 import type { Ctx } from "../context.js";
 import { HttpError, parse, uuidParam } from "../errors.js";
 import { guard, me } from "../guard.js";
+import { foundingCount, lockPolicy } from "../../services/settings.js";
 
 const rubricScore = z.number().int().min(0).max(RUBRIC_MAX_EACH);
 const Decision = z
@@ -158,9 +159,12 @@ export const vettingRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
       if (b.decision === "rejected") {
         await tx.query("UPDATE teacher_profiles SET status='rejected' WHERE user_id=$1", [id]);
       } else {
+        // The first N teachers ever approved are "founding" teachers (N is a setting). Decided once, on first approval.
+        const policy = await lockPolicy(tx);
+        const taken = await foundingCount(tx);
         await tx.query(
-          "UPDATE teacher_profiles SET status=$2, approved_at=$3, adults_only = (adults_only OR $4) WHERE user_id=$1",
-          [id, b.decision, ctx.now(), b.decision === "conditional"],
+          "UPDATE teacher_profiles SET status=$2, founding = CASE WHEN approved_at IS NULL THEN $5 ELSE founding END, approved_at=$3, adults_only = (adults_only OR $4) WHERE user_id=$1",
+          [id, b.decision, ctx.now(), b.decision === "conditional", taken < policy.founderLimit],
         );
         // Only categories with accepted proof go live.
         await tx.query(

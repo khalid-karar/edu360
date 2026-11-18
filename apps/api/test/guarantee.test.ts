@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { teacherCompensation } from "../src/domain/guarantee.js";
+const comp = (c: number) => teacherCompensation(c, c, c, 2000); // a 20% rate
 import { makeHarness } from "./helpers/harness.js";
 import { HOUR, PRICE, makeMarket } from "./helpers/market.js";
 
@@ -23,8 +24,8 @@ const claim = (token: string, id: string, why = "not_a_good_fit") => h.call("POS
 
 describe("the rule", () => {
   it("gives the teacher half of a first lesson's normal net, rounded down", () => {
-    expect(teacherCompensation(10_000)).toBe(4_000); // 20% commission -> net 8,000 -> half
-    expect(teacherCompensation(10_001)).toBe(Math.floor(((10_001 - Math.floor((10_001 * 2000 + 5000) / 10_000)) * 5000) / 10_000));
+    expect(comp(10_000)).toBe(4_000); // 20% commission -> net 8,000 -> half
+    expect(comp(10_001)).toBe(Math.floor(((10_001 - Math.floor((10_001 * 2000 + 5000) / 10_000)) * 5000) / 10_000));
   });
 });
 
@@ -41,14 +42,14 @@ describe("claiming", () => {
     expect(await m.providerStatus(b.paymentId)).toBe("refunded");
 
     const row = (await h.db.query<{ status: string; refunded_halalas: number; commission_halalas: number; platform_credit_halalas: number }>("SELECT status, refunded_halalas, commission_halalas, platform_credit_halalas FROM payments WHERE booking_id = $1", [b.id])).rows[0]!;
-    expect(row).toMatchObject({ status: "refunded", refunded_halalas: b.priceHalalas, commission_halalas: 0, platform_credit_halalas: teacherCompensation(b.priceHalalas) });
+    expect(row).toMatchObject({ status: "refunded", refunded_halalas: b.priceHalalas, commission_halalas: 0, platform_credit_halalas: comp(b.priceHalalas) });
 
     // the learner sees a full refund, the teacher sees the platform top-up
     expect(r.body.booking.payment).toMatchObject({ refundedHalalas: b.priceHalalas });
     const tv = (await h.call("GET", `/api/bookings/${b.id}`, { token: t.token })).body;
-    expect(tv.payment).toMatchObject({ platformCreditHalalas: teacherCompensation(b.priceHalalas), netHalalas: teacherCompensation(b.priceHalalas) });
+    expect(tv.payment).toMatchObject({ platformCreditHalalas: comp(b.priceHalalas), netHalalas: comp(b.priceHalalas) });
     const earn = (await h.call("GET", "/api/teacher/earnings", { token: t.token })).body;
-    expect(earn.heldInDisputeWindowHalalas + earn.availableForNextRunHalalas).toBe(teacherCompensation(b.priceHalalas));
+    expect(earn.heldInDisputeWindowHalalas + earn.availableForNextRunHalalas).toBe(comp(b.priceHalalas));
 
     // it is a system-decided dispute, so it can neither be claimed again nor disputed afterwards
     expect((await claim(l.token, b.id)).body).toMatchObject({ error: "guarantee_unavailable", details: { reason: "dispute_exists" } });
@@ -59,7 +60,7 @@ describe("claiming", () => {
     const fin = await h.staff("finance_officer");
     const prev = await h.call("GET", "/api/admin/finance/payout-runs/preview", { token: fin.token });
     const mine = prev.body.batches.find((x: { teacherId: string }) => x.teacherId === t.id);
-    expect(mine?.amount).toBe(teacherCompensation(b.priceHalalas));
+    expect(mine?.amount).toBe(comp(b.priceHalalas));
     const list = await h.call("GET", "/api/admin/finance/disputes?status=decided", { token: fin.token });
     expect(list.body.items.find((x: { bookingId: string }) => x.bookingId === b.id)?.kind).toBe("guarantee");
     const inbox = (await h.call("GET", "/api/notifications", { token: t.token })).body.items as { kind: string }[];
