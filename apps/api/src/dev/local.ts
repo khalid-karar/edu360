@@ -35,6 +35,7 @@ const config: Config = {
   uploadsPrefix: "uploads/",
   uploadDir: "/tmp/ilmak-local-storage",
   uploadMaxBytes: 5_000_000,
+  uploadVideoMaxBytes: 50_000_000,
   echoOtp: true,
 };
 

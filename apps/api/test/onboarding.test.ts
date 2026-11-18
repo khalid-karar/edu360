@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { CONDUCT_VERSION } from "../src/index.js";
-import { makeHarness, makeIban } from "./helpers/harness.js";
+import { makeHarness, makeIban, MP4 } from "./helpers/harness.js";
 
 let h: Awaited<ReturnType<typeof makeHarness>>;
 let catId: number;
@@ -77,9 +77,10 @@ describe("identity (Nafath)", () => {
 async function readyTeacher(nationalId: string) {
   const t = await h.signup("teacher", "معلم");
   await h.verifyIdentity(t.token, nationalId);
-  const key = (f: string) => `uploads/${t.id}/${f}`;
   const scan = await h.upload(t.token);
   expect(scan.status).toBe(201);
+  const video = await h.upload(t.token, MP4, "video/mp4");
+  expect(video.status).toBe(201);
   const calls = [
     await h.call("PUT", "/api/teacher/profile", {
       token: t.token,
@@ -87,7 +88,7 @@ async function readyTeacher(nationalId: string) {
         bio: "معلم قرآن كريم بإجازة متصلة السند وخبرة عشر سنوات في تعليم الأطفال والكبار.",
         languages: ["ar"],
         freelanceDocumentNo: "FL-123456",
-        introVideoKey: key("intro.mp4"),
+        introVideoKey: video.body.fileKey,
       },
     }),
     await h.call("PUT", "/api/teacher/categories", { token: t.token, body: { categories: [{ categoryId: catId, priceHalalas: 10000 }] } }),
@@ -150,14 +151,21 @@ describe("teacher onboarding", () => {
       const r = await h.call("PUT", "/api/teacher/profile", { token: t.token, body: { ...body, introVideoKey: bad } });
       expect(r.status).toBe(400);
     }
-    const ok = await h.call("PUT", "/api/teacher/profile", { token: t.token, body: { ...body, introVideoKey: `uploads/${t.id}/intro.mp4` } });
+    // Well-formed but never uploaded, or someone else's upload: refused.
+    expect((await h.call("PUT", "/api/teacher/profile", { token: t.token, body: { ...body, introVideoKey: `uploads/${t.id}/intro.mp4` } })).body.error).toBe("unknown_upload");
+    await h.verifyIdentity(other.token, "1000000104");
+    const theirs = await h.upload(other.token, MP4, "video/mp4");
+    expect((await h.call("PUT", "/api/teacher/profile", { token: t.token, body: { ...body, introVideoKey: theirs.body.fileKey } })).status).toBeGreaterThanOrEqual(400);
+    const mine = await h.upload(t.token, MP4, "video/mp4");
+    const ok = await h.call("PUT", "/api/teacher/profile", { token: t.token, body: { ...body, introVideoKey: mine.body.fileKey } });
     expect(ok.status).toBe(200);
   });
 
   it("requires credentials in a selected category and the current code of conduct", async () => {
     const t = await h.signup("teacher");
     await h.verifyIdentity(t.token, "1000000112");
-    const cred = await h.call("POST", "/api/teacher/credentials", { token: t.token, body: { categoryId: catId, kind: "degree", fileKey: `uploads/${t.id}/d.pdf` } });
+    const scan = await h.upload(t.token);
+    const cred = await h.call("POST", "/api/teacher/credentials", { token: t.token, body: { categoryId: catId, kind: "degree", fileKey: scan.body.fileKey } });
     expect(cred.body.error).toBe("category_not_selected");
     const old = await h.call("POST", "/api/teacher/code-of-conduct/sign", { token: t.token, body: { version: "2020-old" } });
     expect(old.body.error).toBe("version_outdated");

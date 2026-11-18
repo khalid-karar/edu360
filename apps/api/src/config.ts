@@ -30,6 +30,8 @@ const Env = z.object({
   /** Where uploaded files are kept on disk (test server / single machine). */
   UPLOAD_DIR: z.string().default("./data/storage"),
   UPLOAD_MAX_BYTES: z.coerce.number().int().positive().max(20_000_000).default(5_000_000),
+  /** Intro and sample videos. Held in memory while saving, so keep this modest until object storage streams. */
+  UPLOAD_VIDEO_MAX_BYTES: z.coerce.number().int().positive().max(200_000_000).default(50_000_000),
   /** Shared rate-limit counters. Without it each API process counts on its own, which is fine for one process only. */
   REDIS_URL: z.string().min(1).optional(),
   /** Allowed prefix for uploaded file keys; real storage issues keys under it. */
@@ -52,6 +54,7 @@ export interface Config {
   uploadsPrefix: string;
   uploadDir: string;
   uploadMaxBytes: number;
+  uploadVideoMaxBytes: number;
   redisUrl?: string;
   video?: { kind: "mock" } | { kind: "livekit"; url: string; apiKey: string; apiSecret: string };
   /** Mock mode only: return the one-time code in the response. Real SMS never echoes it. */
@@ -85,6 +88,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     uploadsPrefix: e.UPLOADS_PREFIX,
     uploadDir: e.UPLOAD_DIR,
     uploadMaxBytes: e.UPLOAD_MAX_BYTES,
+    uploadVideoMaxBytes: e.UPLOAD_VIDEO_MAX_BYTES,
     ...(e.REDIS_URL ? { redisUrl: e.REDIS_URL } : {}),
     echoOtp: e.PROVIDERS === "mock",
   };

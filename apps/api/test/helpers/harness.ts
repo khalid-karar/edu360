@@ -27,6 +27,7 @@ export const config: Config = {
   uploadsPrefix: "uploads/",
   uploadDir: "unused",
   uploadMaxBytes: 100_000,
+  uploadVideoMaxBytes: 300_000,
   echoOtp: true,
 };
 
@@ -34,6 +35,10 @@ export interface Res {
   status: number;
   body: any;
 }
+
+/** Smallest buffers the upload sniffer accepts as video. */
+export const MP4 = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from("ftypmp42"), Buffer.alloc(32)]);
+export const WEBM = Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(32)]);
 
 let phoneSeq = 0;
 export const nextPhone = () => `+9665${String(10_000_000 + ++phoneSeq)}`;

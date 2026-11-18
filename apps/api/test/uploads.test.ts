@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { makeHarness } from "./helpers/harness.js";
-import { MAX_UPLOADS_PER_USER } from "../src/domain/uploads.js";
+import { makeHarness, MP4, WEBM } from "./helpers/harness.js";
+import { MAX_UPLOADS_PER_USER, MAX_VIDEOS_PER_USER } from "../src/domain/uploads.js";
 import { LocalDiskStorage } from "../src/storage/storage.js";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -130,6 +130,107 @@ describe("credentials use uploaded files", () => {
     const other = await h.staff("finance_officer");
     expect((await h.call("GET", `/api/admin/vetting/credentials/${cred.body.id}/file`, { token: other.token })).status).toBe(403);
     expect((await h.call("GET", `/api/admin/vetting/credentials/${cred.body.id}/file`, { token: t.token })).status).toBe(403);
+  });
+});
+
+const BIO = "معلم متمرس وخبرة طويلة في تدريس المواد الدراسية للمراحل المختلفة بطرق حديثة.";
+const profile = (extra: Record<string, unknown>) => ({ bio: BIO, languages: ["ar"], freelanceDocumentNo: "FL-777777", ...extra });
+
+describe("videos and the employer letter", () => {
+  it("stores mp4, webm and quicktime videos under their own size limit", async () => {
+    const t = await activeTeacher("1000000252");
+    expect((await h.upload(t.token, MP4, "video/mp4")).body.fileKey).toMatch(/\.mp4$/);
+    expect((await h.upload(t.token, WEBM, "video/webm")).body.fileKey).toMatch(/\.webm$/);
+    const mov = Buffer.concat([Buffer.from([0, 0, 0, 0x14]), Buffer.from("ftypqt  "), Buffer.alloc(16)]);
+    expect((await h.upload(t.token, mov, "video/quicktime")).body.fileKey).toMatch(/\.mov$/);
+  });
+
+  it("allows a video larger than the document limit but not past its own", async () => {
+    const t = await activeTeacher("1000000351");
+    const { uploadMaxBytes, uploadVideoMaxBytes } = h.ctx.config;
+    const sized = (n: number) => Buffer.concat([MP4, Buffer.alloc(n - MP4.length)]);
+    expect((await h.upload(t.token, sized(uploadMaxBytes + 1000), "video/mp4")).status).toBe(201);
+    expect((await h.upload(t.token, sized(uploadVideoMaxBytes + 1), "video/mp4")).status).toBe(413);
+  });
+
+  it("rejects look-alikes: a still image in an mp4 container, or a pdf called a video", async () => {
+    const t = await activeTeacher("1000000278");
+    const heic = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from("ftypheic"), Buffer.alloc(16)]);
+    expect((await h.upload(t.token, heic, "video/mp4")).status).toBe(415);
+    expect((await h.upload(t.token, PDF, "video/mp4")).status).toBe(415);
+    expect((await h.upload(t.token, MP4, "application/pdf")).status).toBe(415);
+  });
+
+  it("caps how many videos one teacher keeps, separately from documents", async () => {
+    const t = await activeTeacher("1000000286");
+    for (let i = 0; i < MAX_VIDEOS_PER_USER; i++) expect((await h.upload(t.token, MP4, "video/mp4")).status).toBe(201);
+    const over = await h.upload(t.token, MP4, "video/mp4");
+    expect(over.status).toBe(422);
+    expect(over.body.error).toBe("too_many_videos");
+    expect((await h.upload(t.token)).status).toBe(201);
+  });
+
+  it("needs an uploaded video of the right kind on the profile, and keeps it when the key is left out", async () => {
+    const t = await activeTeacher("1000000294");
+    const put = (body: Record<string, unknown>) => h.call("PUT", "/api/teacher/profile", { token: t.token, body: profile(body) });
+    expect((await put({})).body.error).toBe("intro_video_required");
+    const pdf = await h.upload(t.token);
+    expect((await put({ introVideoKey: pdf.body.fileKey })).body.error).toBe("wrong_file_kind");
+    const video = await h.upload(t.token, MP4, "video/mp4");
+    expect((await put({ introVideoKey: video.body.fileKey })).status).toBe(200);
+    // Saving again without a key keeps the video, so the form need not re-upload.
+    expect((await put({})).status).toBe(200);
+    const me = await h.call("GET", "/api/teacher/me", { token: t.token });
+    expect(me.body.profile.hasIntroVideo).toBe(true);
+    expect(me.body.missing).not.toContain("intro_video");
+  });
+
+  it("takes the employer letter as a document, keeps it when omitted and removes it on null", async () => {
+    const t = await activeTeacher("1000000302");
+    const video = await h.upload(t.token, MP4, "video/mp4");
+    const letter = await h.upload(t.token);
+    const put = (body: Record<string, unknown>) => h.call("PUT", "/api/teacher/profile", { token: t.token, body: profile({ introVideoKey: video.body.fileKey, ...body }) });
+    expect((await put({ employerNocKey: video.body.fileKey })).body.error).toBe("wrong_file_kind");
+    expect((await put({ employerNocKey: letter.body.fileKey })).status).toBe(200);
+    const has = async () => (await h.call("GET", "/api/teacher/me", { token: t.token })).body.profile.hasEmployerNoc;
+    expect(await has()).toBe(true);
+    expect((await put({})).status).toBe(200);
+    expect(await has()).toBe(true);
+    expect((await put({ employerNocKey: null })).status).toBe(200);
+    expect(await has()).toBe(false);
+  });
+
+  it("only lets a sample-video credential carry a video, and other proof carry a document", async () => {
+    const t = await activeTeacher("1000000377");
+    await h.call("PUT", "/api/teacher/categories", { token: t.token, body: { categories: [{ categoryId: catId, priceHalalas: 10000 }] } });
+    const video = await h.upload(t.token, MP4, "video/mp4");
+    const pdf = await h.upload(t.token);
+    const add = (kind: string, fileKey: string) => h.call("POST", "/api/teacher/credentials", { token: t.token, body: { categoryId: catId, kind, fileKey } });
+    expect((await add("degree", video.body.fileKey)).body.error).toBe("wrong_file_kind");
+    expect((await add("sample_video", pdf.body.fileKey)).body.error).toBe("wrong_file_kind");
+    expect((await add("sample_video", video.body.fileKey)).status).toBe(201);
+  });
+
+  it("lets a vetting officer open the intro video and the letter, audits each view, and keeps others out", async () => {
+    const t = await activeTeacher("1000000328");
+    const video = await h.upload(t.token, MP4, "video/mp4");
+    const letter = await h.upload(t.token, PNG, "image/png");
+    await h.call("PUT", "/api/teacher/profile", { token: t.token, body: profile({ introVideoKey: video.body.fileKey, employerNocKey: letter.body.fileKey }) });
+    const officer = await h.staff("vetting_officer");
+    const get = (path: string, token: string) => h.app.inject({ method: "GET", url: `/api/admin/vetting/teachers/${t.id}/${path}`, headers: { authorization: `Bearer ${token}` } });
+    const v = await get("intro-video", officer.token);
+    expect(v.statusCode).toBe(200);
+    expect(v.headers["content-type"]).toBe("video/mp4");
+    expect(v.rawPayload.equals(MP4)).toBe(true);
+    expect((await get("employer-noc", officer.token)).rawPayload.equals(PNG)).toBe(true);
+    const log = await h.db.query("SELECT action FROM audit_log WHERE target_id = $1 AND action IN ('teacher.intro_video_viewed','teacher.employer_noc_viewed')", [t.id]);
+    expect(log.rowCount).toBe(2);
+    expect((await get("intro-video", (await h.staff("finance_officer")).token)).statusCode).toBe(403);
+    expect((await get("intro-video", t.token)).statusCode).toBe(403);
+    // The review screen never receives the raw storage keys.
+    const detail = await h.call("GET", `/api/admin/vetting/teachers/${t.id}`, { token: officer.token });
+    expect(detail.body.teacher).toMatchObject({ has_intro_video: true, has_employer_noc: true });
+    expect(JSON.stringify(detail.body.teacher)).not.toContain("uploads/");
   });
 });
 

@@ -47,7 +47,7 @@ export const vettingRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     const id = uuidParam((req.params as { id?: string }).id);
     const t = (
       await db.query<Record<string, unknown>>(
-        `SELECT t.status, t.bio, t.languages, t.freelance_document_no, t.employer_noc_url, t.intro_video_url,
+        `SELECT t.status, t.bio, t.languages, t.freelance_document_no, (t.employer_noc_url IS NOT NULL) AS has_employer_noc, (t.intro_video_url IS NOT NULL) AS has_intro_video,
                 t.code_of_conduct_version, t.adults_only, t.submitted_at,
                 u.display_name, i.full_name, i.gender, i.date_of_birth
            FROM teacher_profiles t JOIN users u ON u.id = t.user_id
@@ -76,6 +76,22 @@ export const vettingRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     await audit(db, { actorId: officer.id, action: "credential.file_viewed", targetType: "credential", targetId: id, detail: { teacherId: c.teacher_id } });
     return reply.header("content-type", f.contentType).header("content-disposition", 'attachment; filename="credential"').send(f.data);
   });
+
+  // The intro video and the employer's no-objection letter, opened the same way: only here, and every view is audited.
+  const profileFile = (path: "intro-video" | "employer-noc", column: "intro_video_url" | "employer_noc_url", action: string) =>
+    app.get(`/admin/vetting/teachers/:id/${path}`, { preHandler: pre }, async (req, reply) => {
+      const officer = me(req);
+      const id = uuidParam((req.params as { id?: string }).id);
+      const row = (await db.query<{ key: string | null }>(`SELECT ${column} AS key FROM teacher_profiles WHERE user_id = $1`, [id])).rows[0];
+      if (!row?.key) throw new HttpError(404, "not_found");
+      const up = (await db.query<{ content_type: string }>("SELECT content_type FROM uploads WHERE key = $1", [row.key])).rows[0];
+      const f = up ? await readUploadByKey(ctx, row.key, up.content_type) : null;
+      if (!f) throw new HttpError(404, "not_found");
+      await audit(db, { actorId: officer.id, action, targetType: "user", targetId: id, detail: {} });
+      return reply.header("content-type", f.contentType).header("content-disposition", 'attachment; filename="file"').send(f.data);
+    });
+  profileFile("intro-video", "intro_video_url", "teacher.intro_video_viewed");
+  profileFile("employer-noc", "employer_noc_url", "teacher.employer_noc_viewed");
 
   app.post("/admin/vetting/credentials/:id/review", { preHandler: pre }, async (req) => {
     const officer = me(req);

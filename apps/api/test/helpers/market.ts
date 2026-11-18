@@ -1,5 +1,5 @@
 import { expect } from "vitest";
-import type { makeHarness } from "./harness.js";
+import { MP4, type makeHarness } from "./harness.js";
 
 type H = Awaited<ReturnType<typeof makeHarness>>;
 export const HOUR = 3_600_000;
@@ -20,9 +20,10 @@ export async function makeMarket(h: H) {
   /** An approved teacher with a bank account and one approved category. `approvedAt` defaults to long ago. */
   async function teacher(opts: { gender?: "female" | "male"; adultsOnly?: boolean; approvedAt?: Date } = {}) {
     const t = await verified("teacher", opts.gender ?? "male");
+    const video = await h.upload(t.token, MP4, "video/mp4");
     const r = await h.call("PUT", "/api/teacher/profile", {
       token: t.token,
-      body: { bio: "معلم قرآن كريم بإجازة متصلة السند وخبرة عشر سنوات في تعليم الأطفال والكبار.", languages: ["ar"], freelanceDocumentNo: "FL-123456", introVideoKey: `uploads/${t.id}/i.mp4` },
+      body: { bio: "معلم قرآن كريم بإجازة متصلة السند وخبرة عشر سنوات في تعليم الأطفال والكبار.", languages: ["ar"], freelanceDocumentNo: "FL-123456", introVideoKey: video.body.fileKey },
     });
     expect(r.status).toBe(200);
     expect((await h.call("PUT", "/api/teacher/categories", { token: t.token, body: { categories: [{ categoryId: catId, priceHalalas: PRICE }] } })).status).toBe(200);

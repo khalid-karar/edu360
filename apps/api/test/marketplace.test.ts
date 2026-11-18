@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { expireStale } from "../src/services/bookings.js";
-import { makeHarness } from "./helpers/harness.js";
+import { makeHarness, MP4 } from "./helpers/harness.js";
 
 let h: Awaited<ReturnType<typeof makeHarness>>;
 let catId: number;
@@ -27,9 +27,10 @@ async function verified(role: "learner" | "guardian" | "teacher", gender: "femal
 /** An approved teacher with one approved category. Vetting itself is covered in onboarding.test.ts. */
 async function teacher(opts: { gender?: "female" | "male"; adultsOnly?: boolean } = {}) {
   const t = await verified("teacher", opts.gender ?? "male");
+  const video = await h.upload(t.token, MP4, "video/mp4");
   const r = await h.call("PUT", "/api/teacher/profile", {
     token: t.token,
-    body: { bio: "معلم قرآن كريم بإجازة متصلة السند وخبرة عشر سنوات في تعليم الأطفال والكبار.", languages: ["ar"], freelanceDocumentNo: "FL-123456", introVideoKey: `uploads/${t.id}/i.mp4` },
+    body: { bio: "معلم قرآن كريم بإجازة متصلة السند وخبرة عشر سنوات في تعليم الأطفال والكبار.", languages: ["ar"], freelanceDocumentNo: "FL-123456", introVideoKey: video.body.fileKey },
   });
   expect(r.status).toBe(200);
   expect((await h.call("PUT", "/api/teacher/categories", { token: t.token, body: { categories: [{ categoryId: catId, priceHalalas: PRICE }] } })).status).toBe(200);

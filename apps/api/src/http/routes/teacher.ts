@@ -1,4 +1,4 @@
-import { ALLOWED_TYPES } from "../../domain/uploads.js";
+import { ALLOWED_TYPES, isVideo } from "../../domain/uploads.js";
 import { readUploadById, saveUpload } from "../../services/uploads.js";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
@@ -123,18 +123,29 @@ export const teacherRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
           bio: z.string().trim().min(40).max(1000),
           languages: z.array(z.enum(["ar", "en", "ur", "hi", "fr", "tl", "other"])).min(1).max(5),
           freelanceDocumentNo: z.string().trim().regex(/^[A-Za-z0-9-]{4,30}$/),
-          employerNocKey: uploadKey(u.id).optional(),
-          introVideoKey: uploadKey(u.id),
+          // Omitted keeps the current file; null (letter only) removes it.
+          employerNocKey: uploadKey(u.id).nullable().optional(),
+          introVideoKey: uploadKey(u.id).optional(),
         })
         .strict(),
       req.body,
     );
     const p = await profileOf(db, u.id);
     lockOr(p);
+    const own = async (key: string, wantVideo: boolean) => {
+      const r = await db.query<{ content_type: string }>("SELECT content_type FROM uploads WHERE key = $1 AND owner_id = $2", [key, u.id]);
+      if (!r.rowCount) throw new HttpError(422, "unknown_upload");
+      if (isVideo(r.rows[0]!.content_type) !== wantVideo) throw new HttpError(422, "wrong_file_kind");
+    };
+    if (body.introVideoKey) await own(body.introVideoKey, true);
+    if (body.employerNocKey) await own(body.employerNocKey, false);
+    const intro = body.introVideoKey ?? p.intro_video_url;
+    if (!intro) throw new HttpError(422, "intro_video_required");
+    const noc = body.employerNocKey === undefined ? p.employer_noc_url : body.employerNocKey;
     await db.query(
       `UPDATE teacher_profiles SET bio=$2, languages=$3, freelance_document_no=$4, employer_noc_url=$5, intro_video_url=$6
         WHERE user_id=$1`,
-      [u.id, body.bio, body.languages, body.freelanceDocumentNo, body.employerNocKey ?? null, body.introVideoKey],
+      [u.id, body.bio, body.languages, body.freelanceDocumentNo, noc, intro],
     );
     return { ok: true };
   });
@@ -184,9 +195,10 @@ export const teacherRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
   });
 
   // Raw file bodies. The guard runs as onRequest, before the body is read, so an anonymous caller cannot make the server buffer megabytes.
-  app.addContentTypeParser([...ALLOWED_TYPES], { parseAs: "buffer", bodyLimit: ctx.config.uploadMaxBytes }, (_req, body, done) => done(null, body));
+  const rawLimit = Math.max(ctx.config.uploadMaxBytes, ctx.config.uploadVideoMaxBytes);
+  app.addContentTypeParser([...ALLOWED_TYPES], { parseAs: "buffer", bodyLimit: rawLimit }, (_req, body, done) => done(null, body));
 
-  app.post("/teacher/uploads", { onRequest: pre, bodyLimit: ctx.config.uploadMaxBytes }, async (req, reply) => {
+  app.post("/teacher/uploads", { onRequest: pre, bodyLimit: rawLimit }, async (req, reply) => {
     const u = me(req);
     const saved = await saveUpload(ctx, u.id, req.body, req.headers["content-type"] ?? "");
     reply.code(201);
@@ -213,8 +225,10 @@ export const teacherRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     const n = await db.query<{ n: number }>("SELECT count(*)::int AS n FROM credentials WHERE teacher_id = $1 AND category_id = $2", [u.id, b.categoryId]);
     if ((n.rows[0]?.n ?? 0) >= MAX_CREDENTIALS_PER_CATEGORY) throw new HttpError(422, "too_many_credentials");
     // The file must be one this teacher uploaded through the endpoint above, not just a well-formed name.
-    const owned = await db.query("SELECT 1 FROM uploads WHERE key = $1 AND owner_id = $2", [b.fileKey, u.id]);
+    const owned = await db.query<{ content_type: string }>("SELECT content_type FROM uploads WHERE key = $1 AND owner_id = $2", [b.fileKey, u.id]);
     if (!owned.rowCount) throw new HttpError(422, "unknown_upload");
+    // A sample lesson is a video; every other proof is a scan or photo.
+    if (isVideo(owned.rows[0]!.content_type) !== (b.kind === "sample_video")) throw new HttpError(422, "wrong_file_kind");
     const r = await db.query<{ id: string }>(
       "INSERT INTO credentials (teacher_id, category_id, kind, file_url) VALUES ($1,$2,$3,$4) RETURNING id",
       [u.id, b.categoryId, b.kind, b.fileKey],

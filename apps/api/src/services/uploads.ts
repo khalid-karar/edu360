@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { EXTENSION, MAX_UPLOADS_PER_USER, sniffType } from "../domain/uploads.js";
+import { EXTENSION, MAX_UPLOADS_PER_USER, MAX_VIDEOS_PER_USER, isVideo, sniffType } from "../domain/uploads.js";
 import type { Ctx } from "../http/context.js";
 import { HttpError } from "../http/errors.js";
 
@@ -13,12 +13,17 @@ export interface SavedUpload {
 /** Validates and stores one file for a user. The server picks the key, so a client can never name a path. */
 export async function saveUpload(ctx: Ctx, userId: string, data: unknown, declaredType: string): Promise<SavedUpload> {
   if (!Buffer.isBuffer(data) || data.length === 0) throw new HttpError(422, "empty_file");
-  if (data.length > ctx.config.uploadMaxBytes) throw new HttpError(413, "too_large");
   const type = sniffType(data);
   if (!type || type !== declaredType.split(";")[0]!.trim().toLowerCase()) throw new HttpError(415, "unsupported_file_type");
+  if (data.length > (isVideo(type) ? ctx.config.uploadVideoMaxBytes : ctx.config.uploadMaxBytes)) throw new HttpError(413, "too_large");
 
   const n = await ctx.db.query<{ n: number }>("SELECT count(*)::int AS n FROM uploads WHERE owner_id = $1", [userId]);
   if ((n.rows[0]?.n ?? 0) >= MAX_UPLOADS_PER_USER) throw new HttpError(422, "too_many_uploads");
+
+  if (isVideo(type)) {
+    const v = await ctx.db.query<{ n: number }>("SELECT count(*)::int AS n FROM uploads WHERE owner_id = $1 AND content_type LIKE 'video/%'", [userId]);
+    if ((v.rows[0]?.n ?? 0) >= MAX_VIDEOS_PER_USER) throw new HttpError(422, "too_many_videos");
+  }
 
   const key = `${ctx.config.uploadsPrefix}${userId}/${randomUUID()}.${EXTENSION[type]}`;
   await ctx.storage.put(key, data);
