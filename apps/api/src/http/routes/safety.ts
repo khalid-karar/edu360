@@ -44,7 +44,7 @@ export const safetyRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     if (!r) throw new HttpError(404, "not_found");
     const messages = r.booking_id
       ? await db.query<{ id: string; sender_id: string; body: string; blocked: boolean; block_reason: string | null; created_at: Date }>(
-          "SELECT id, sender_id, body, blocked, block_reason, created_at FROM messages WHERE booking_id = $1 ORDER BY created_at DESC LIMIT 50",
+          "SELECT id, sender_id, body, blocked, block_reason, created_at FROM messages WHERE booking_id = $1 ORDER BY created_at DESC, seq DESC LIMIT 50",
           [r.booking_id],
         )
       : { rows: [] };

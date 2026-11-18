@@ -92,7 +92,7 @@ export async function listInquiries(db: Db, userId: string) {
             CASE WHEN i.payer_id = $1 THEN i.payer_seen_at ELSE i.teacher_seen_at END AS seen,
             lm.body AS last_body, lm.sender_id AS last_sender
        FROM inquiries i JOIN users o ON o.id = CASE WHEN i.payer_id = $1 THEN i.teacher_id ELSE i.payer_id END
-       LEFT JOIN LATERAL (SELECT body, sender_id FROM messages WHERE inquiry_id = i.id AND NOT blocked ORDER BY created_at DESC, id DESC LIMIT 1) lm ON true
+       LEFT JOIN LATERAL (SELECT body, sender_id FROM messages WHERE inquiry_id = i.id AND NOT blocked ORDER BY created_at DESC, seq DESC LIMIT 1) lm ON true
       WHERE (i.payer_id = $1 OR i.teacher_id = $1) AND lm.body IS NOT NULL
       ORDER BY i.last_message_at DESC LIMIT 100`,
     [userId],
@@ -110,7 +110,7 @@ export async function listInquiries(db: Db, userId: string) {
 export async function inquiryMessages(db: Db, now: Date, userId: string, inquiryId: string, after?: Date) {
   const t = await threadFor(db, userId, inquiryId);
   const r = await db.query<{ id: string; sender_id: string; body: string; created_at: Date }>(
-    `SELECT id, sender_id, body, created_at FROM messages WHERE inquiry_id = $1 AND NOT blocked AND ($2::timestamptz IS NULL OR created_at > $2) ORDER BY created_at ASC, id ASC LIMIT 200`,
+    `SELECT id, sender_id, body, created_at FROM messages WHERE inquiry_id = $1 AND NOT blocked AND ($2::timestamptz IS NULL OR created_at > $2) ORDER BY created_at ASC, seq ASC LIMIT 200`,
     [inquiryId, after ?? null],
   );
   await db.query(`UPDATE inquiries SET ${userId === t.payer_id ? "payer_seen_at" : "teacher_seen_at"} = $2 WHERE id = $1`, [inquiryId, now]);
