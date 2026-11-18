@@ -81,7 +81,7 @@ function Statement() {
     <div className="card stack">
       <div className="row between">
         <h2 style={{ margin: 0 }}>كشف الشهر</h2>
-        <input type="month" className="ltr" value={month} max={thisMonth()} onChange={(e) => setMonth(e.target.value)} aria-label="الشهر" />
+        <MonthPick value={month} onChange={setMonth} />
       </div>
       <ErrorNote error={err} />
       {s && s.lessons.length === 0 && <div className="empty">لا دروس مدفوعة في هذا الشهر.</div>}
@@ -102,6 +102,27 @@ function Statement() {
           <div><button className="btn ghost" onClick={() => saveProtectedFile(`/teacher/statement?month=${month}&format=csv`, `ilmak-statement-${month}.csv`).catch((e) => setErr(errorText(e)))}>تنزيل CSV</button></div>
         </>
       )}
+    </div>
+  );
+}
+
+const MONTH_NAMES = Array.from({ length: 12 }, (_, i) => new Intl.DateTimeFormat("ar-SA-u-ca-gregory", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2026, i, 15))));
+
+/** Month and year as two selects, so the names are Arabic on every device (a native month input follows the browser's language). */
+function MonthPick({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [y, m] = value.split("-").map(Number) as [number, number];
+  const now = thisMonth().split("-").map(Number) as [number, number];
+  const years = [now[0] - 2, now[0] - 1, now[0]];
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const set = (ny: number, nm: number) => onChange(`${ny}-${pad(ny === now[0] && nm > now[1] ? now[1] : nm)}`);
+  return (
+    <div className="row" style={{ gap: 8 }}>
+      <select value={m} onChange={(e) => set(y, Number(e.target.value))} aria-label="الشهر">
+        {MONTH_NAMES.map((n, i) => <option key={n} value={i + 1} disabled={y === now[0] && i + 1 > now[1]}>{n}</option>)}
+      </select>
+      <select value={y} onChange={(e) => set(Number(e.target.value), m)} aria-label="السنة">
+        {years.map((yy) => <option key={yy} value={yy}>{yy}</option>)}
+      </select>
     </div>
   );
 }

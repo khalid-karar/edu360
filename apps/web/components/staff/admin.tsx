@@ -106,8 +106,8 @@ const WAITING: Record<string, string> = {
 };
 const PIPE: Record<string, string> = { draft: "مسودة", submitted: "مقدّم", interview: "مقابلة", approved: "معتمد", rejected: "مرفوض", suspended: "موقوف" };
 
-function Stat({ label, value, testId }: { label: string; value: string | number; testId?: string }) {
-  return <div className="card tight stack"><span className="muted small">{label}</span><b style={{ fontSize: 26 }} data-testid={testId}>{value}</b></div>;
+function Stat({ label, value, testId, hint }: { label: string; value: string | number; testId?: string; hint?: string }) {
+  return <div className="card tight stack"><span className="muted small">{label}</span><b style={{ fontSize: 26 }} data-testid={testId}>{value}</b>{hint && <span className="muted small">{hint}</span>}</div>;
 }
 
 function Bars({ rows }: { rows: { day: string; n: number }[] }) {
@@ -136,7 +136,7 @@ function Analytics() {
         <Stat label="متعلّمون" value={d.users.learners} />
         <Stat label="أولياء أمور" value={d.users.guardians} />
         <Stat label="معلّمون" value={d.users.teachers} />
-        <Stat label="مدارس" value={d.users.schools} />
+        <Stat label="مدارس معتمدة" value={d.schools.approved} hint={d.schools.pending > 0 ? `${d.schools.pending} بانتظار القرار` : undefined} />
         <Stat label="مسجّلون جدد (7 أيام)" value={d.users.newLast7d} />
         <Stat label="حجوزات" value={d.bookings30d.total} />
         <Stat label="إجمالي المدفوعات" value={sar(d.money30d.grossHalalas)} testId="gross" />

@@ -240,7 +240,9 @@ test("a teacher reads the month statement and downloads it as CSV; finance expor
   await page.goto("/portal/earnings");
   // The seeded lessons are a few days old, so pick the month of five days ago whatever today's date is.
   const month = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Riyadh", year: "numeric", month: "2-digit" }).format(new Date(Date.now() - 5 * 86_400_000)).slice(0, 7);
-  await page.fill("input[type=month]", month);
+  await page.selectOption("select[aria-label=السنة]", month.slice(0, 4));
+  await page.selectOption("select[aria-label=الشهر]", String(Number(month.slice(5))));
+  await expect(page.locator("select[aria-label=الشهر] option:checked")).toHaveText(/[\u0600-\u06FF]/); // an Arabic month name
   await expect(page.locator("[data-testid=statement-net]")).toBeVisible();
   const [dl] = await Promise.all([page.waitForEvent("download"), page.click("button:has-text('تنزيل CSV')")]);
   expect(dl.suggestedFilename()).toBe(`ilmak-statement-${month}.csv`);
