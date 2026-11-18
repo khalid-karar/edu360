@@ -24,7 +24,7 @@ function Categories() {
   const act = useAct();
   const [f, setF] = useState({ slug: "", nameAr: "", nameEn: "", min: "", max: "", minors: true });
   async function add() {
-    const r = await act.run("POST", "/admin/categories", { slug: f.slug, nameAr: f.nameAr, nameEn: f.nameEn, minPriceHalalas: Math.round(Number(f.min) * 100), maxPriceHalalas: Math.round(Number(f.max) * 100), allowsMinors: f.minors });
+    const r = await act.run("POST", "/admin/categories", { slug: f.slug, nameAr: f.nameAr, nameEn: f.nameEn, minPriceHalalas: 100, maxPriceHalalas: Math.round(Number(f.max) * 100), allowsMinors: f.minors });
     if (r) { setF({ slug: "", nameAr: "", nameEn: "", min: "", max: "", minors: true }); q.reload(); }
   }
   async function toggle(c: Cat, patch: Partial<Cat>) {
@@ -216,12 +216,12 @@ function Requests({ onApproved }: { onApproved: () => void }) {
 
 function RequestCard({ r, onDone }: { r: CatReq; onDone: () => void }) {
   const act = useAct();
-  const [f, setF] = useState({ nameAr: r.name, nameEn: "", slug: "", min: "30", max: "500", minors: true });
+  const [f, setF] = useState({ nameAr: r.name, nameEn: "", slug: "", max: "500", minors: true });
   const [reason, setReason] = useState("");
   const slug = f.slug || slugOf(f.nameEn);
-  const valid = f.nameAr.trim().length >= 2 && f.nameEn.trim().length >= 2 && /^[a-z0-9-]{2,40}$/.test(slug) && Number(f.min) > 0 && Number(f.max) >= Number(f.min);
+  const valid = f.nameAr.trim().length >= 2 && f.nameEn.trim().length >= 2 && /^[a-z0-9-]{2,40}$/.test(slug) && Number(f.max) >= 1;
   async function approve() {
-    const body = { decision: "approve", slug, nameAr: f.nameAr.trim(), nameEn: f.nameEn.trim(), minPriceHalalas: Math.round(Number(f.min) * 100), maxPriceHalalas: Math.round(Number(f.max) * 100), allowsMinors: f.minors };
+    const body = { decision: "approve", slug, nameAr: f.nameAr.trim(), nameEn: f.nameEn.trim(), minPriceHalalas: 100, maxPriceHalalas: Math.round(Number(f.max) * 100), allowsMinors: f.minors };
     if (await act.run("POST", `/admin/category-requests/${r.id}/decision`, body)) onDone();
   }
   async function reject() {
@@ -235,7 +235,6 @@ function RequestCard({ r, onDone }: { r: CatReq; onDone: () => void }) {
       <Field label="الاسم بالإنجليزي"><input className="ltr" value={f.nameEn} onChange={(e) => setF({ ...f, nameEn: e.target.value })} /></Field>
       <Field label="المعرّف (يُولَّد من الإنجليزي)"><input className="ltr" value={slug} onChange={(e) => setF({ ...f, slug: e.target.value })} /></Field>
       <div className="row">
-        <Field label="أقل سعر (ر.س)"><input inputMode="decimal" value={f.min} onChange={(e) => setF({ ...f, min: e.target.value })} /></Field>
         <Field label="أعلى سعر (ر.س)"><input inputMode="decimal" value={f.max} onChange={(e) => setF({ ...f, max: e.target.value })} /></Field>
       </div>
       <label className="row"><input type="checkbox" checked={f.minors} onChange={(e) => setF({ ...f, minors: e.target.checked })} /> يسمح بالقاصرين</label>
