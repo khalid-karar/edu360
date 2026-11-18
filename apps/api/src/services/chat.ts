@@ -105,7 +105,7 @@ export async function listMessages(db: Db, userId: string, bookingId: string, af
   const r = await db.query<{ id: string; sender_id: string; body: string; created_at: Date }>(
     `SELECT id, sender_id, body, created_at FROM messages
       WHERE booking_id = $1 AND NOT blocked AND ($2::timestamptz IS NULL OR created_at > $2)
-      ORDER BY created_at ASC, id ASC LIMIT 200`,
+      ORDER BY created_at ASC, seq ASC LIMIT 200`,
     [bookingId, after ?? null],
   );
   return r.rows.map((m) => ({ id: m.id, mine: m.sender_id === userId, body: m.body, createdAt: m.created_at }));
